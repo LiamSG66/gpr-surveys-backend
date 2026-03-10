@@ -15,16 +15,19 @@ TOOL_DIR = Path(__file__).parent / "tools"
 
 # Maps tool references in workflow steps to tool module filenames
 TOOL_ALIASES = {
-    "fetch_booking":            "fetch_booking",
-    "create_calendar_event":    "create_calendar_event",
-    "update_calendar_event":    "update_calendar_event",
-    "delete_calendar_event":    "delete_calendar_event",
-    "create_drive_folder":      "create_drive_folder",
-    "upload_to_drive":          "upload_to_drive",
-    "send_email":               "send_email",
-    "update_booking_record":    "update_booking_record",
-    "fetch_pending_reminders":  "fetch_pending_reminders",
-    "sync_file_to_drive":       "sync_file_to_drive",
+    "fetch_booking":               "fetch_booking",
+    "create_calendar_event":       "create_calendar_event",
+    "update_calendar_event":       "update_calendar_event",
+    "delete_calendar_event":       "delete_calendar_event",
+    "create_drive_folder":         "create_drive_folder",
+    "upload_to_drive":             "upload_to_drive",
+    "send_email":                  "send_email",
+    "update_booking_record":       "update_booking_record",
+    "fetch_pending_reminders":     "fetch_pending_reminders",
+    "sync_file_to_drive":          "sync_file_to_drive",
+    "generate_quote_pdf":          "generate_quote_pdf",
+    "upload_quote_to_drive":       "upload_quote_to_drive",
+    "fetch_quote_pdf_from_drive":  "fetch_quote_pdf_from_drive",
 }
 
 

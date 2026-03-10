@@ -1,16 +1,24 @@
 """
 Send email via Gmail API.
 Supports templates: customer_confirmation, internal_notification, customer_cancellation,
-                    customer_modification, booking_reminder, contact_notification
+                    customer_modification, booking_reminder, contact_notification,
+                    quote_email, stale_contacts_alert, quote_followup,
+                    technician_assignment, technician_unassignment, tech_date_change,
+                    technician_credentials, time_off_request, google_review_request
 """
 
 import base64
 import json
+import logging
 import os
 import time
 import jwt
+
+logger = logging.getLogger(__name__)
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from tools.auth import get_google_service
 from config import settings
 
@@ -33,13 +41,37 @@ def _get_service():
     return get_google_service("gmail", "v1", subject=GMAIL_SUBJECT, scopes=SCOPES)
 
 
-def _send(service, to: str, subject: str, html: str, plain: str) -> str:
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = settings.gmail_sender
-    msg["To"] = to
-    msg.attach(MIMEText(plain, "plain"))
-    msg.attach(MIMEText(html, "html"))
+def _send(service, to: str, subject: str, html: str, plain: str, attachment: dict | None = None) -> str:
+    """
+    attachment = { "filename": str, "content_bytes": bytes, "mime_type": str } | None
+    """
+    if attachment:
+        outer = MIMEMultipart("mixed")
+        outer["Subject"] = subject
+        outer["From"] = settings.gmail_sender
+        outer["To"] = to
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(plain, "plain"))
+        alt.attach(MIMEText(html, "html"))
+        outer.attach(alt)
+        # Attach the file
+        part = MIMEBase("application", "pdf")
+        part.set_payload(attachment["content_bytes"])
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition",
+            "attachment",
+            filename=attachment["filename"],
+        )
+        outer.attach(part)
+        msg = outer
+    else:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = settings.gmail_sender
+        msg["To"] = to
+        msg.attach(MIMEText(plain, "plain"))
+        msg.attach(MIMEText(html, "html"))
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     result = service.users().messages().send(userId="me", body={"raw": raw}).execute()
@@ -141,32 +173,56 @@ def _booking_reminder(booking: dict) -> tuple[str, str, str]:
     return subject, html, plain
 
 
-def _customer_modification(booking: dict) -> tuple[str, str, str]:
+def _customer_modification(payload: dict) -> tuple[str, str, str]:
+    booking = payload.get("booking") or {}
     job = booking.get("job_number", "")
     service = booking.get("service", "")
-    date = _fmt_date(booking.get("date", ""))
-    booking_time = booking.get("booking_time", "")[:5]
+    new_date = _fmt_date(booking.get("date", ""))
+    new_time = booking.get("booking_time", "")[:5]
     city = booking.get("site_city", "")
     customer = booking.get("customers") or {}
     first_name = customer.get("first_name", "")
     customer_email = customer.get("email", "")
 
+    old_date_raw = payload.get("old_date") or ""
+    old_time_raw = payload.get("old_booking_time") or ""
+    old_date = _fmt_date(old_date_raw) if old_date_raw else "—"
+    old_time = old_time_raw[:5] if old_time_raw else "—"
+
     modify_token = _generate_modify_token(job, customer_email) if job and customer_email else ""
     modify_url = f"https://gprsurveys.ca/modify?token={modify_token}" if modify_token else "https://gprsurveys.ca/modify"
 
-    subject = f"Booking Updated — {job} | GPR Surveys"
+    subject = f"Booking Rescheduled — {job} | GPR Surveys"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
       <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
       </div>
-      <h2 style="font-size:22px;margin:0 0 8px;">Booking Updated</h2>
-      <p style="color:#94a3b8;margin-bottom:32px;">Hi {first_name}, your booking has been updated. Here are the current details:</p>
+      <h2 style="font-size:22px;margin:0 0 8px;">Your Booking Has Been Rescheduled</h2>
+      <p style="color:#94a3b8;margin-bottom:32px;">Hi {first_name}, your booking ({job}) has been rescheduled. Please note the updated date and time below.</p>
+      <div style="background:#111111;border:1px solid #2a2a2a;border-radius:4px;padding:20px 24px;margin-bottom:32px;">
+        <p style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#FFD700;opacity:0.7;margin:0 0 16px;">UPDATED SCHEDULE</p>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding:6px 0;width:28%;border-bottom:1px solid #1e1e1e;"></td>
+            <td style="padding:6px 0;font-size:12px;color:#555555;border-bottom:1px solid #1e1e1e;width:36%;">Previously</td>
+            <td style="padding:6px 0;font-size:12px;color:#FFD700;font-weight:700;border-bottom:1px solid #1e1e1e;">New</td>
+          </tr>
+          <tr>
+            <td style="padding:12px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Date</td>
+            <td style="padding:12px 0;font-size:13px;color:#555555;text-decoration:line-through;border-bottom:1px solid #1e1e1e;">{old_date}</td>
+            <td style="padding:12px 0;font-size:15px;font-weight:700;border-bottom:1px solid #1e1e1e;">{new_date}</td>
+          </tr>
+          <tr>
+            <td style="padding:12px 0;color:#94a3b8;font-size:13px;">Time</td>
+            <td style="padding:12px 0;font-size:13px;color:#555555;text-decoration:line-through;">{old_time}</td>
+            <td style="padding:12px 0;font-size:15px;font-weight:700;">{new_time}</td>
+          </tr>
+        </table>
+      </div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{job}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{service}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{date}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{booking_time}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{city}</td></tr>
       </table>
       <p style="margin-bottom:8px;">
@@ -174,12 +230,18 @@ def _customer_modification(booking: dict) -> tuple[str, str, str]:
           Modify My Booking
         </a>
       </p>
-      <p style="font-size:12px;color:#3a3a3a;border-top:1px solid #2a2a2a;padding-top:24px;">
-        If you did not request this change, please contact us at info@gprsurveys.ca.
+      <p style="font-size:12px;color:#3a3a3a;border-top:1px solid #2a2a2a;padding-top:24px;margin-top:24px;">
+        If you did not expect this change, please contact us at info@gprsurveys.ca.
       </p>
     </div>
     """
-    plain = f"Booking Updated — {job}\nService: {service}\nDate: {date} at {booking_time}\nLocation: {city}\n\nModify your booking: {modify_url}"
+    plain = (
+        f"Your booking {job} has been rescheduled.\n\n"
+        f"Date:  {old_date}  →  {new_date}\n"
+        f"Time:  {old_time}  →  {new_time}\n\n"
+        f"Service: {service}\nLocation: {city}\n\n"
+        f"Modify your booking: {modify_url}"
+    )
     return subject, html, plain
 
 
@@ -304,60 +366,642 @@ def _customer_cancellation(booking: dict) -> tuple[str, str, str]:
 
 
 def _contact_notification(record: dict) -> tuple[str, str, str]:
-    name = record.get("name", "Unknown")
-    email = record.get("email", "")
-    message = record.get("message", "")
-    subject = f"[NEW CONTACT] {name} — via gprsurveys.ca"
+    first_name   = record.get("first_name", "")
+    last_name    = record.get("last_name", "")
+    name         = f"{first_name} {last_name}".strip() or "Unknown"
+    company      = record.get("company", "")
+    email        = record.get("email", "")
+    phone        = record.get("phone", "")
+    service      = record.get("service", "")
+    message      = record.get("message", "")
+    urgency      = record.get("quote_urgency", "")
+    quote_number = record.get("quote_number", "")
+    addr1        = record.get("site_address_line1", "")
+    city         = record.get("site_city", "")
+    province     = record.get("site_province", "")
+    location     = ", ".join(filter(None, [addr1, city, province]))
+
+    def _row(label, value):
+        if not value:
+            return ""
+        return (
+            f"<tr>"
+            f"<td style='padding:8px 16px 8px 0;color:#666;font-size:13px;white-space:nowrap;vertical-align:top;'>{label}</td>"
+            f"<td style='padding:8px 0;font-size:13px;'>{value}</td>"
+            f"</tr>"
+        )
+
+    rows_html = (
+        _row("Quote #", quote_number)
+        + _row("Name", name)
+        + _row("Company", company)
+        + _row("Email", email)
+        + _row("Phone", phone)
+        + _row("Service", service)
+        + _row("Location", location)
+        + _row("Quote Urgency", urgency)
+    )
+
+    plain_lines = "\n".join(filter(None, [
+        f"Quote #: {quote_number}" if quote_number else "",
+        f"Name: {name}",
+        f"Company: {company}" if company else "",
+        f"Email: {email}",
+        f"Phone: {phone}" if phone else "",
+        f"Service: {service}" if service else "",
+        f"Location: {location}" if location else "",
+        f"Quote Urgency: {urgency}" if urgency else "",
+    ]))
+
+    subject = f"[NEW CONTACT] {name} — {service or 'gprsurveys.ca'}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;">
-      <h2>[NEW CONTACT] {name}</h2>
-      <p style="color:#666;font-size:13px;">Someone filled out the contact form on gprsurveys.ca.</p>
-      <p><strong>Name:</strong> {name}<br>
-      <strong>Email:</strong> {email}</p>
-      <p><strong>Message:</strong><br>{message}</p>
+      <h2 style="margin:0 0 4px;">[NEW CONTACT] {name}</h2>
+      <p style="color:#666;font-size:13px;margin:0 0 16px;">New contact form submission from gprsurveys.ca</p>
+      <table style="border-collapse:collapse;margin-bottom:16px;">{rows_html}</table>
+      <p style="font-size:13px;"><strong>Message:</strong><br>{message}</p>
     </div>
     """
-    plain = f"New contact form submission from gprsurveys.ca\n\nName: {name}\nEmail: {email}\n\nMessage:\n{message}"
+    plain = f"New contact form submission from gprsurveys.ca\n\n{plain_lines}\n\nMessage:\n{message}"
+    return subject, html, plain
+
+
+def _quote_email(contact: dict, quote_number: str) -> tuple[str, str, str]:
+    first_name  = contact.get("first_name", "")
+    site_city   = contact.get("site_city", "")
+    address     = contact.get("site_address_line1", "")
+    location    = f"{address}, {site_city}" if site_city else address
+
+    subject = f"Proposal {quote_number} — GPR Surveys Inc."
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC.</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Professional Services Proposal</h2>
+      <p style="color:#555555;margin-bottom:24px;">
+        Dear {first_name},<br/><br/>
+        Thank you for reaching out to GPR Surveys Inc. Please find attached our proposal
+        <strong>{quote_number}</strong> for the work at <strong>{location}</strong>.
+      </p>
+      <p style="color:#555555;margin-bottom:24px;">
+        This proposal outlines the scope of work, pricing, and terms for the requested subsurface
+        investigation services. Please review the attached document and do not hesitate to contact
+        us with any questions.
+      </p>
+      <p style="color:#555555;margin-bottom:24px;">
+        To authorize this proposal, please sign and return the Client Authorization page (Page 5)
+        along with a purchase order number.
+      </p>
+      <p style="color:#555555;margin-bottom:24px;">
+        To help us process your invoice quickly, please confirm your billing details:<br/>
+        <a href="https://gprsurveys.ca/billing" style="color:#1F4E79;font-weight:600;">Update Billing Info →</a>
+      </p>
+      <p style="color:#555555;font-size:13px;border-top:1px solid #dddddd;padding-top:20px;margin-top:32px;">
+        Louis Gosselin — Managing Partner<br/>
+        GPR Surveys Inc.<br/>
+        <a href="mailto:LG@gprsurveys.ca" style="color:#1F4E79;">LG@gprsurveys.ca</a> | (250) 896-7576
+      </p>
+    </div>
+    """
+    plain = (
+        f"Dear {first_name},\n\n"
+        f"Please find attached our proposal {quote_number} for work at {location}.\n\n"
+        f"Please review and return the signed authorization page along with a PO number.\n\n"
+        f"To help us process your invoice quickly, please confirm your billing details:\n"
+        f"https://gprsurveys.ca/billing\n\n"
+        f"Louis Gosselin — Managing Partner\nGPR Surveys Inc.\nLG@gprsurveys.ca | (250) 896-7576"
+    )
+    return subject, html, plain
+
+
+def _stale_contacts_alert(contacts: list) -> tuple[str, str, str]:
+    count = len(contacts)
+    rows = ""
+    plain_rows = ""
+    for c in contacts:
+        name = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
+        company = c.get("company", "")
+        email = c.get("email", "")
+        service = c.get("service", "")
+        created = c.get("created_at", "")[:10]
+        rows += (
+            f"<tr><td style='padding:6px 12px;border-bottom:1px solid #eee;'>{name}</td>"
+            f"<td style='padding:6px 12px;border-bottom:1px solid #eee;'>{company}</td>"
+            f"<td style='padding:6px 12px;border-bottom:1px solid #eee;'>{service}</td>"
+            f"<td style='padding:6px 12px;border-bottom:1px solid #eee;'>{created}</td></tr>"
+        )
+        plain_rows += f"  • {name} ({company}) — {service} — received {created}\n"
+
+    subject = f"[ACTION REQUIRED] {count} uncontacted lead{'s' if count != 1 else ''} — GPR Surveys"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:680px;">
+      <h2 style="color:#1F4E79;">[STALE CONTACTS] {count} lead{'s' if count != 1 else ''} uncontacted for 48h+</h2>
+      <p>The following contact{'s have' if count != 1 else ' has'} not been actioned in over 48 hours:</p>
+      <table style="border-collapse:collapse;width:100%;">
+        <thead>
+          <tr style="background:#1F4E79;color:#fff;">
+            <th style="padding:8px 12px;text-align:left;">Name</th>
+            <th style="padding:8px 12px;text-align:left;">Company</th>
+            <th style="padding:8px 12px;text-align:left;">Service</th>
+            <th style="padding:8px 12px;text-align:left;">Received</th>
+          </tr>
+        </thead>
+        <tbody>{rows}</tbody>
+      </table>
+      <p style="margin-top:20px;">
+        <a href="https://gprsurveys.ca/admin/customers" style="background:#1F4E79;color:#fff;padding:10px 20px;text-decoration:none;font-size:12px;font-weight:bold;letter-spacing:0.1em;text-transform:uppercase;">
+          View Contacts →
+        </a>
+      </p>
+    </div>
+    """
+    plain = (
+        f"STALE CONTACTS: {count} lead(s) uncontacted for 48h+\n\n"
+        f"{plain_rows}\n"
+        f"Review at: https://gprsurveys.ca/admin/customers"
+    )
+    return subject, html, plain
+
+
+def _google_review_request(booking: dict) -> tuple[str, str, str]:
+    job = booking.get("job_number", "")
+    customer = booking.get("customers") or {}
+    first_name = customer.get("first_name", "")
+    review_url = os.environ.get("GOOGLE_REVIEW_URL", "https://gprsurveys.ca")
+
+    subject = "How did we do? — GPR Surveys Inc."
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC.</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Thank You for Choosing GPR Surveys</h2>
+      <p style="color:#555555;margin-bottom:24px;">
+        Hi {first_name},<br/><br/>
+        Thank you for working with us on job <strong>{job}</strong>. We hope the survey met your expectations
+        and helped support your project safely and efficiently.
+      </p>
+      <p style="color:#555555;margin-bottom:24px;">
+        If you have a moment, we'd really appreciate it if you could share your experience with a
+        Google review — it helps other clients find us and means a lot to our small team.
+      </p>
+      <p style="margin-bottom:32px;">
+        <a href="{review_url}" style="display:inline-block;background:#1F4E79;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 28px;">
+          Leave a Google Review
+        </a>
+      </p>
+      <p style="color:#555555;font-size:13px;border-top:1px solid #dddddd;padding-top:20px;margin-top:32px;">
+        Louis Gosselin — Managing Partner<br/>
+        GPR Surveys Inc.<br/>
+        <a href="mailto:LG@gprsurveys.ca" style="color:#1F4E79;">LG@gprsurveys.ca</a> | (250) 896-7576
+      </p>
+    </div>
+    """
+    plain = (
+        f"Hi {first_name},\n\n"
+        f"Thank you for working with us on job {job}. We hope the survey met your expectations.\n\n"
+        f"If you have a moment, we'd love a Google review:\n{review_url}\n\n"
+        f"Louis Gosselin — Managing Partner\nGPR Surveys Inc.\nLG@gprsurveys.ca | (250) 896-7576"
+    )
+    return subject, html, plain
+
+
+def _technician_credentials(payload: dict) -> tuple[str, str, str]:
+    name         = payload.get("name", "")
+    email        = payload.get("email", "")
+    temp_password = payload.get("temp_password", "")
+    login_url    = os.environ.get("SITE_URL", "https://gprsurveys.ca") + "/login"
+
+    subject = "Your GPR Surveys Portal Access"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
+      <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
+      </div>
+      <h2 style="font-size:22px;margin:0 0 8px;">Welcome, {name}</h2>
+      <p style="color:#94a3b8;margin-bottom:32px;">Your admin portal account has been created. Use the credentials below to log in.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Login URL</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;"><a href="{login_url}" style="color:#FFD700;">{login_url}</a></td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Email</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{email}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Temp Password</td><td style="padding:10px 0;font-size:13px;font-weight:600;">{temp_password}</td></tr>
+      </table>
+      <p style="color:#94a3b8;font-size:13px;">
+        Once you're logged in, go to <strong>Settings</strong> in the sidebar to set a new password.
+      </p>
+      <p style="font-size:12px;color:#3a3a3a;border-top:1px solid #2a2a2a;padding-top:24px;margin-top:24px;">
+        If you did not expect this email, contact info@gprsurveys.ca.
+      </p>
+    </div>
+    """
+    plain = (
+        f"Welcome {name},\n\n"
+        f"Your GPR Surveys admin portal account has been created.\n\n"
+        f"Login URL: {login_url}\n"
+        f"Email: {email}\n"
+        f"Temp Password: {temp_password}\n\n"
+        f"Once logged in, go to Settings in the sidebar to set a new password.\n\n"
+        f"Questions? Contact info@gprsurveys.ca"
+    )
+    return subject, html, plain
+
+
+def _technician_assignment(payload: dict) -> tuple[str, str, str]:
+    """Notify a technician they have been assigned to a job."""
+    booking     = payload.get("booking") or {}
+    tech_name   = payload.get("tech_name", "")
+    portal_url  = payload.get("portal_url", "https://gprsurveys.ca/admin/job/" + booking.get("job_number", ""))
+
+    job          = booking.get("job_number", "")
+    service      = booking.get("service", "")
+    date         = _fmt_date(booking.get("date", ""))
+    booking_time = booking.get("booking_time", "")[:5]
+    address      = f"{booking.get('site_address_line1', '')} {booking.get('site_city', '')} {booking.get('site_province', '')}".strip()
+    customer     = booking.get("customers") or {}
+    cust_name    = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
+    cust_phone   = customer.get("phone", "")
+    site_contact = f"{booking.get('site_contact_first_name', '')} {booking.get('site_contact_last_name', '')}".strip()
+    site_phone   = booking.get("site_contact_phone", "")
+    notes        = booking.get("notes", "") or "—"
+
+    subject = f"[JOB ASSIGNED] {job} — {service}"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
+      <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Job Assigned — {job}</h2>
+      <p style="color:#94a3b8;margin-bottom:28px;">Hi {tech_name}, you have been assigned to the following job.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:28px;">
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;width:38%;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #1e1e1e;">{job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{date}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{booking_time}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Site Address</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{address}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Customer</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{cust_name}{(' — ' + cust_phone) if cust_phone else ''}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Site Contact</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{site_contact}{(' — ' + site_phone) if site_phone else ''}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Notes</td><td style="padding:10px 0;font-size:13px;">{notes}</td></tr>
+      </table>
+      <p style="margin-bottom:8px;">
+        <a href="{portal_url}" style="display:inline-block;background:#FFD700;color:#0a0a0a;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
+          View Job in Portal
+        </a>
+      </p>
+      <p style="font-size:12px;color:#3a3a3a;border-top:1px solid #1e1e1e;padding-top:24px;margin-top:24px;">
+        Questions? Contact info@gprsurveys.ca
+      </p>
+    </div>
+    """
+    plain = (
+        f"JOB ASSIGNED — {job}\n\n"
+        f"Hi {tech_name}, you have been assigned to the following job.\n\n"
+        f"Job: {job}\nService: {service}\nDate: {date} at {booking_time}\n"
+        f"Site: {address}\nCustomer: {cust_name} {cust_phone}\n"
+        f"Site Contact: {site_contact} {site_phone}\nNotes: {notes}\n\n"
+        f"View in portal: {portal_url}"
+    )
+    return subject, html, plain
+
+
+def _technician_unassignment(payload: dict) -> tuple[str, str, str]:
+    """Notify a technician they have been removed from a job."""
+    booking    = payload.get("booking") or {}
+    tech_name  = payload.get("tech_name", "")
+    portal_url = payload.get("portal_url", "https://gprsurveys.ca/admin/job/" + booking.get("job_number", ""))
+
+    job     = booking.get("job_number", "")
+    service = booking.get("service", "")
+    date    = _fmt_date(booking.get("date", ""))
+    time_s  = booking.get("booking_time", "")[:5]
+    address = f"{booking.get('site_address_line1', '')} {booking.get('site_city', '')} {booking.get('site_province', '')}".strip()
+
+    subject = f"[JOB UNASSIGNED] {job} — {service}"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
+      <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Job Unassigned — {job}</h2>
+      <p style="color:#94a3b8;margin-bottom:28px;">Hi {tech_name}, you have been removed from the following job.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:28px;">
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;width:38%;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #1e1e1e;">{job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{date}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{time_s}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Site Address</td><td style="padding:10px 0;font-size:13px;">{address}</td></tr>
+      </table>
+      <p style="font-size:13px;color:#94a3b8;">If you believe this was an error, please contact info@gprsurveys.ca.</p>
+    </div>
+    """
+    plain = (
+        f"JOB UNASSIGNED — {job}\n\n"
+        f"Hi {tech_name}, you have been removed from job {job}.\n\n"
+        f"Service: {service}\nDate: {date} at {time_s}\nSite: {address}\n\n"
+        f"Questions? Contact info@gprsurveys.ca"
+    )
+    return subject, html, plain
+
+
+def _quote_followup(contact: dict, quote_number: str, days_ago: int) -> tuple[str, str, str]:
+    first_name = contact.get("first_name", "")
+    site_city  = contact.get("site_city", "")
+
+    subject = f"Following Up — Proposal {quote_number} | GPR Surveys Inc."
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC.</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Following Up on Your Proposal</h2>
+      <p style="color:#555555;margin-bottom:24px;">
+        Dear {first_name},<br/><br/>
+        I wanted to follow up on proposal <strong>{quote_number}</strong> that we sent {days_ago} days ago
+        for your project in {site_city}. We would love to help and are happy to answer any questions
+        you may have about the scope, pricing, or process.
+      </p>
+      <p style="color:#555555;margin-bottom:24px;">
+        If you are still interested, please reply to this email or give us a call. If your project
+        plans have changed, no problem at all — just let us know and we will update our records.
+      </p>
+      <p style="color:#555555;font-size:13px;border-top:1px solid #dddddd;padding-top:20px;margin-top:32px;">
+        Louis Gosselin — Managing Partner<br/>
+        GPR Surveys Inc.<br/>
+        <a href="mailto:LG@gprsurveys.ca" style="color:#1F4E79;">LG@gprsurveys.ca</a> | (250) 896-7576
+      </p>
+    </div>
+    """
+    plain = (
+        f"Dear {first_name},\n\n"
+        f"Following up on proposal {quote_number} sent {days_ago} days ago for your project in {site_city}.\n\n"
+        f"Please reply if you have questions or would like to proceed.\n\n"
+        f"Louis Gosselin — Managing Partner\nGPR Surveys Inc.\nLG@gprsurveys.ca | (250) 896-7576"
+    )
+    return subject, html, plain
+
+
+def _time_off_request(payload: dict) -> tuple[str, str, str]:
+    from datetime import datetime
+    tech_name  = payload.get("tech_name", "Unknown Technician")
+    tech_email = payload.get("tech_email", "")
+    dates      = payload.get("dates", [])
+    notes      = payload.get("notes", "").strip()
+
+    date_count = len(dates)
+
+    def _fmt(d: str) -> str:
+        try:
+            return datetime.strptime(d, "%Y-%m-%d").strftime("%a, %b %-d, %Y")
+        except Exception:
+            return d
+
+    formatted_dates = [_fmt(d) for d in sorted(dates)]
+    submitted = datetime.now().strftime("%a, %b %-d, %Y")
+
+    subject = f"[TIME OFF REQUEST] {tech_name} \u2014 {date_count} day{'s' if date_count != 1 else ''}"
+
+    date_rows = "".join(
+        f'<tr><td style="padding:4px 0;color:#333333;">{d}</td></tr>'
+        for d in formatted_dates
+    )
+    notes_block = (
+        f'<p style="margin:16px 0 0;"><strong>Notes:</strong></p>'
+        f'<p style="color:#555555;font-style:italic;">&ldquo;{notes}&rdquo;</p>'
+        if notes else ""
+    )
+
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC.</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Time Off Request</h2>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+        <tr><td style="padding:4px 0;color:#888888;width:120px;">Technician</td><td style="padding:4px 0;font-weight:600;">{tech_name}</td></tr>
+        <tr><td style="padding:4px 0;color:#888888;">Email</td><td style="padding:4px 0;">{tech_email}</td></tr>
+        <tr><td style="padding:4px 0;color:#888888;">Submitted</td><td style="padding:4px 0;">{submitted}</td></tr>
+      </table>
+      <p style="margin:0 0 8px;font-weight:600;">Requested Days Off ({date_count}):</p>
+      <table style="border-collapse:collapse;margin-bottom:8px;">
+        {date_rows}
+      </table>
+      {notes_block}
+    </div>
+    """
+
+    date_list = "\n".join(f"  - {d}" for d in formatted_dates)
+    plain = (
+        f"TIME OFF REQUEST\n\n"
+        f"Technician: {tech_name}\n"
+        f"Email:      {tech_email}\n"
+        f"Submitted:  {submitted}\n\n"
+        f"Requested Days Off ({date_count}):\n{date_list}\n"
+        + (f"\nNotes: {notes}" if notes else "")
+    )
+    return subject, html, plain
+
+
+def _time_off_approval(payload: dict) -> tuple[str, str, str]:
+    """
+    Notify the technician that their time-off request has been approved.
+    Payload: { tech_name, tech_email, start_date, end_date, dates: list[str] }
+    Recipient: tech_email directly.
+    """
+    from datetime import datetime
+    tech_name = payload.get("tech_name", "Technician")
+    dates     = payload.get("dates", [])
+
+    def _fmt(d: str) -> str:
+        try:
+            return datetime.strptime(d, "%Y-%m-%d").strftime("%a, %b %-d, %Y")
+        except Exception:
+            return d
+
+    date_count      = len(dates)
+    formatted_dates = [_fmt(d) for d in sorted(dates)]
+
+    subject = f"[TIME OFF APPROVED] Your request has been approved — {date_count} day{'s' if date_count != 1 else ''}"
+
+    date_rows = "".join(
+        f'<tr><td style="padding:8px 0;color:#e2e8f0;font-size:13px;border-bottom:1px solid #2a2a2a;">{d}</td></tr>'
+        for d in formatted_dates
+    )
+
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
+      <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS — SCHEDULE UPDATE</h1>
+      </div>
+      <h2 style="font-size:22px;margin:0 0 8px;">Time Off Approved</h2>
+      <p style="color:#94a3b8;margin-bottom:32px;">Hi {tech_name}, your time-off request has been approved for the following {date_count} day{'s' if date_count != 1 else ''}:</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
+        {date_rows}
+      </table>
+      <p style="font-size:12px;color:#3a3a3a;border-top:1px solid #2a2a2a;padding-top:24px;">
+        This is an automated notification from GPR Surveys admin.
+      </p>
+    </div>
+    """
+
+    date_list = "\n".join(f"  - {d}" for d in formatted_dates)
+    plain = (
+        f"TIME OFF APPROVED\n\n"
+        f"Hi {tech_name}, your time-off request has been approved.\n\n"
+        f"Approved Days ({date_count}):\n{date_list}\n"
+    )
+    return subject, html, plain
+
+
+def _tech_date_change(payload: dict) -> tuple[str, str, str]:
+    """Notify the assigned technician that one of their jobs has been rescheduled."""
+    booking     = payload.get("booking") or {}
+    job_number  = booking.get("job_number", "")
+    old_date    = _fmt_date(payload.get("old_date", ""))
+    new_date    = _fmt_date(booking.get("date", ""))
+    service     = booking.get("service", "")
+    address     = f"{booking.get('site_address_line1', '')} {booking.get('site_city', '')} {booking.get('site_province', '')}".strip()
+
+    subject = f"[JOB MOVED] {job_number} rescheduled to {new_date}"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
+      <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS — TECH UPDATE</h1>
+      </div>
+      <h2 style="font-size:22px;margin:0 0 8px;">[JOB MOVED] {job_number}</h2>
+      <p style="color:#94a3b8;margin-bottom:32px;">One of your assigned jobs has been rescheduled by the admin.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{job_number}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Old Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;text-decoration:line-through;color:#94a3b8;">{old_date}</td></tr>
+        <tr><td style="padding:10px 0;color:#FFD700;font-size:13px;font-weight:700;border-bottom:1px solid #2a2a2a;">New Date</td><td style="padding:10px 0;font-size:13px;font-weight:700;color:#FFD700;border-bottom:1px solid #2a2a2a;">{new_date}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Site</td><td style="padding:10px 0;font-size:13px;">{address}</td></tr>
+      </table>
+      <p style="font-size:12px;color:#3a3a3a;border-top:1px solid #2a2a2a;padding-top:24px;">
+        This is an automated notification. Please check the admin portal for full job details.
+      </p>
+    </div>
+    """
+    plain = (
+        f"[JOB MOVED] {job_number}\n\n"
+        f"Service:  {service}\n"
+        f"Old Date: {old_date}\n"
+        f"New Date: {new_date}\n"
+        f"Site:     {address}\n\n"
+        f"Please check the admin portal for full job details."
+    )
     return subject, html, plain
 
 
 TEMPLATES = {
-    "customer_confirmation": _customer_confirmation,
-    "customer_modification": _customer_modification,
-    "customer_cancellation": _customer_cancellation,
-    "internal_notification": _internal_notification,
-    "internal_modification": _internal_modification,
-    "internal_cancellation": _internal_cancellation,
-    "booking_reminder": _booking_reminder,
-    "contact_notification": _contact_notification,
+    "customer_confirmation":    _customer_confirmation,
+    "customer_modification":    _customer_modification,
+    "customer_cancellation":    _customer_cancellation,
+    "internal_notification":    _internal_notification,
+    "internal_modification":    _internal_modification,
+    "internal_cancellation":    _internal_cancellation,
+    "booking_reminder":         _booking_reminder,
+    "contact_notification":     _contact_notification,
+    "quote_email":              _quote_email,
+    "stale_contacts_alert":     _stale_contacts_alert,
+    "quote_followup":           _quote_followup,
+    "google_review_request":    _google_review_request,
+    "technician_credentials":   _technician_credentials,
+    "technician_assignment":    _technician_assignment,
+    "technician_unassignment":  _technician_unassignment,
+    "tech_date_change":         _tech_date_change,
+    "time_off_request":         _time_off_request,
+    "time_off_approval":        _time_off_approval,
 }
 
 # Templates that receive the full payload (not just booking) because they need extra state
-_FULL_PAYLOAD_TEMPLATES = {"internal_modification"}
+_FULL_PAYLOAD_TEMPLATES = {"internal_modification", "customer_modification"}
 
 # Templates that use record (not booking) as their data source
 _RECORD_TEMPLATES = {"contact_notification"}
 
+# Templates that operate on contacts (not bookings)
+_CONTACT_TEMPLATES = {"quote_email", "quote_followup"}
+
+# Internal contact-related templates (no booking, no contact recipient)
+_INTERNAL_CONTACT_TEMPLATES = {"stale_contacts_alert", "time_off_request"}
+
+# Templates that receive the full payload and send to payload["email"] or payload["tech_email"]
+_DIRECT_PAYLOAD_TEMPLATES = {"technician_credentials"}
+
+# Templates that receive the full payload and send to payload["tech_email"]
+_TECH_NOTIFICATION_TEMPLATES = {"technician_assignment", "technician_unassignment", "tech_date_change", "time_off_approval"}
+
 
 def run(payload: dict) -> dict:
-    booking = payload.get("booking")
+    booking  = payload.get("booking")
     template = payload.get("template", "customer_confirmation")
 
     if template not in TEMPLATES:
         raise ValueError(f"send_email: unknown template '{template}'")
-    if template not in _RECORD_TEMPLATES and not booking:
+
+    # Conditional skips — keep workflow steps unconditional; skip logic lives here
+    if template == "customer_modification" and payload.get("skip_customer_email"):
+        logger.info("[send_email] Skipping customer_modification — skip_customer_email=True")
+        return {"customer_email_skipped": True}
+
+    if template == "tech_date_change" and not payload.get("tech_email"):
+        logger.info("[send_email] Skipping tech_date_change — no tech_email in payload")
+        return {"tech_email_skipped": True}
+
+    # Require booking for booking templates only
+    if template not in _RECORD_TEMPLATES and template not in _CONTACT_TEMPLATES and template not in _INTERNAL_CONTACT_TEMPLATES and template not in _DIRECT_PAYLOAD_TEMPLATES and template not in _TECH_NOTIFICATION_TEMPLATES and not booking:
         raise ValueError("send_email: booking required")
 
     service = _get_service()
-    if template in _FULL_PAYLOAD_TEMPLATES:
+
+    # ── Build subject/html/plain ──────────────────────────────────────────────
+    if template in _TECH_NOTIFICATION_TEMPLATES:
         subject, html, plain = TEMPLATES[template](payload)
+
+    elif template in _FULL_PAYLOAD_TEMPLATES:
+        subject, html, plain = TEMPLATES[template](payload)
+
     elif template in _RECORD_TEMPLATES:
         subject, html, plain = TEMPLATES[template](payload.get("record", {}))
+
+    elif template == "quote_email":
+        contact      = payload.get("contact", {})
+        quote_number = contact.get("quote_number") or payload.get("quote_number", "Q00001")
+        subject, html, plain = TEMPLATES[template](contact, quote_number)
+
+    elif template == "quote_followup":
+        contact      = payload.get("contact", {})
+        quote_number = contact.get("quote_number") or payload.get("quote_number", "Q00001")
+        days_ago     = payload.get("days_ago", 30)
+        subject, html, plain = TEMPLATES[template](contact, quote_number, days_ago)
+
+    elif template == "stale_contacts_alert":
+        contacts = payload.get("contacts", [])
+        subject, html, plain = TEMPLATES[template](contacts)
+
+    elif template in ("time_off_request", "time_off_approval"):
+        subject, html, plain = TEMPLATES[template](payload)
+
+    elif template in _DIRECT_PAYLOAD_TEMPLATES:
+        subject, html, plain = TEMPLATES[template](payload)
+
     else:
         subject, html, plain = TEMPLATES[template](booking)
 
-    if template in ("internal_notification", "internal_modification", "internal_cancellation", "contact_notification"):
+    # ── Determine recipient ───────────────────────────────────────────────────
+    _internal_templates = (
+        "internal_notification", "internal_modification",
+        "internal_cancellation", "contact_notification",
+        "stale_contacts_alert", "time_off_request",
+    )
+    if template in _TECH_NOTIFICATION_TEMPLATES:
+        to = payload.get("tech_email", "")
+    elif template in _DIRECT_PAYLOAD_TEMPLATES:
+        to = payload.get("email", "")
+    elif template in _internal_templates:
         to = settings.gmail_internal_recipient
+    elif template in _CONTACT_TEMPLATES:
+        contact = payload.get("contact", {})
+        to = contact.get("email", "")
     else:
         customer = booking.get("customers") or {}
         to = customer.get("email") or booking.get("billing_email") or ""
@@ -365,7 +1009,19 @@ def run(payload: dict) -> dict:
     if not to:
         raise ValueError("send_email: no recipient email found")
 
-    msg_id = _send(service, to, subject, html, plain)
+    # ── Build attachment if present ───────────────────────────────────────────
+    attachment = None
+    pdf_bytes_b64 = payload.get("pdf_bytes")
+    pdf_filename  = payload.get("pdf_filename")
+    if pdf_bytes_b64 and pdf_filename:
+        import base64 as _b64
+        attachment = {
+            "filename":      pdf_filename,
+            "content_bytes": _b64.b64decode(pdf_bytes_b64),
+            "mime_type":     "application/pdf",
+        }
+
+    msg_id = _send(service, to, subject, html, plain, attachment=attachment)
     result = {f"email_{template}_id": msg_id}
 
     # For cancellations, also notify the assigned technician directly
