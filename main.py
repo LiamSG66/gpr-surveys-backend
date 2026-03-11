@@ -110,7 +110,7 @@ async def webhook_dispatcher(request: Request) -> dict:
         if new_status == "cancelled" and old_status != "cancelled":
             workflow = "cancel_booking"
         elif new_status == "confirmed" and old_status != "confirmed":
-            return {"status": "skipped", "reason": "status confirmed — no workflow triggered"}
+            workflow = "confirm_booking"
         elif _is_assignment_only_change(record, old_record):
             # Tech assignment/unassignment — update calendar only, no customer email
             # (tech notification email is handled by the Next.js API route directly)
@@ -378,37 +378,58 @@ async def send_tech_notification_endpoint(request: Request) -> dict:
 @modal.fastapi_endpoint(method="POST")
 async def send_time_off_request_endpoint(request: Request) -> dict:
     """
-    Send a time-off email.
-    type="request"  → email admin that a tech submitted a request (includes dates + notes)
-    type="approval" → email tech that their request was approved (includes dates)
+    Send an admin notification email.
+    type="request"  → email admin that a tech submitted a time-off request
+    type="approval" → email tech that their time-off request was approved
+    type="billing"  → email admin that a customer submitted billing info
     """
     headers = dict(request.headers)
     if not _verify_webhook_secret(headers):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     payload    = await request.json()
-    email_type = payload.get("type", "request")  # "request" | "approval"
-    tech_name  = payload.get("tech_name")
-    tech_email = payload.get("tech_email")
-    dates      = payload.get("dates", [])
-
-    if not tech_name or not tech_email:
-        raise HTTPException(status_code=400, detail="tech_name and tech_email are required")
-    if not dates:
-        raise HTTPException(status_code=400, detail="at least one date is required")
-
-    template = "time_off_request" if email_type == "request" else "time_off_approval"
+    email_type = payload.get("type", "request")  # "request" | "approval" | "billing"
 
     try:
         import tools.send_email as emailer
-        result = emailer.run({
-            "template":   template,
-            "tech_name":  tech_name,
-            "tech_email": tech_email,
-            "dates":      dates,
-            "notes":      payload.get("notes", ""),
-        })
+
+        if email_type == "billing":
+            result = emailer.run({
+                "template":               "billing_notification",
+                "first_name":             payload.get("first_name", ""),
+                "last_name":              payload.get("last_name", ""),
+                "email":                  payload.get("email", ""),
+                "phone":                  payload.get("phone", ""),
+                "company":                payload.get("company", ""),
+                "billing_email":          payload.get("billing_email", ""),
+                "billing_address_line1":  payload.get("billing_address_line1", ""),
+                "billing_address_line2":  payload.get("billing_address_line2", ""),
+                "billing_city":           payload.get("billing_city", ""),
+                "billing_province":       payload.get("billing_province", ""),
+                "billing_postal_code":    payload.get("billing_postal_code", ""),
+            })
+        else:
+            tech_name  = payload.get("tech_name")
+            tech_email = payload.get("tech_email")
+            dates      = payload.get("dates", [])
+
+            if not tech_name or not tech_email:
+                raise HTTPException(status_code=400, detail="tech_name and tech_email are required")
+            if not dates:
+                raise HTTPException(status_code=400, detail="at least one date is required")
+
+            template = "time_off_request" if email_type == "request" else "time_off_approval"
+            result = emailer.run({
+                "template":   template,
+                "tech_name":  tech_name,
+                "tech_email": tech_email,
+                "dates":      dates,
+                "notes":      payload.get("notes", ""),
+            })
+
         return {"status": "ok", **result}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[send_time_off_request_endpoint] {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -453,7 +474,7 @@ def alert_stale_contacts():
     import tools.send_email as emailer
     from datetime import datetime, timezone, timedelta
 
-    supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
+    supabase = create_client(settings.supabase_url, settings.supabase_service_key)
     cutoff   = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
 
     result = supabase.table("contact_submissions") \
@@ -495,7 +516,7 @@ def followup_stale_quotes():
     import tools.send_email as emailer
     from datetime import datetime, timezone, timedelta
 
-    supabase  = create_client(settings.supabase_url, settings.supabase_service_role_key)
+    supabase  = create_client(settings.supabase_url, settings.supabase_service_key)
     now       = datetime.now(timezone.utc)
     cutoff_31 = (now - timedelta(days=31)).isoformat()
     cutoff_29 = (now - timedelta(days=29)).isoformat()

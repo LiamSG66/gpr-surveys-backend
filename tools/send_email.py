@@ -1,6 +1,6 @@
 """
 Send email via Gmail API.
-Supports templates: customer_confirmation, internal_notification, customer_cancellation,
+Supports templates: booking_received, customer_confirmation, internal_notification, customer_cancellation,
                     customer_modification, booking_reminder, contact_notification,
                     quote_email, stale_contacts_alert, quote_followup,
                     technician_assignment, technician_unassignment, tech_date_change,
@@ -128,6 +128,55 @@ def _customer_confirmation(booking: dict) -> tuple[str, str, str]:
     return subject, html, plain
 
 
+def _booking_received(booking: dict) -> tuple[str, str, str]:
+    """Sent immediately on booking submission — job is pending review, not yet confirmed."""
+    job = booking.get("job_number", "")
+    service = booking.get("service", "")
+    date = _fmt_date(booking.get("date", ""))
+    booking_time = booking.get("booking_time", "")[:5]
+    city = booking.get("site_city", "")
+    customer = booking.get("customers") or {}
+    first_name = customer.get("first_name", "")
+    customer_email = customer.get("email", "")
+
+    modify_token = _generate_modify_token(job, customer_email) if job and customer_email else ""
+    modify_url = f"https://gprsurveys.ca/modify?token={modify_token}" if modify_token else "https://gprsurveys.ca/modify"
+
+    subject = f"Booking Request Received — {job} | GPR Surveys"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
+      <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
+      </div>
+      <h2 style="font-size:22px;margin:0 0 8px;">We've Received Your Request</h2>
+      <p style="color:#94a3b8;margin-bottom:32px;">Hi {first_name}, thank you for booking with GPR Surveys. Our team is reviewing your job request now — we'll send you a confirmation email once it's been confirmed.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Requested Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{date}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{booking_time}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{city}</td></tr>
+      </table>
+      <p style="margin-bottom:8px;">
+        <a href="{modify_url}" style="display:inline-block;background:#FFD700;color:#0a0a0a;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
+          Modify My Request
+        </a>
+      </p>
+      <p style="font-size:12px;color:#3a3a3a;border-top:1px solid #2a2a2a;padding-top:24px;">
+        This link is valid for 30 days. If it expires, visit gprsurveys.ca/modify and enter your job number.
+      </p>
+    </div>
+    """
+    plain = (
+        f"Booking Request Received — {job}\n\n"
+        f"Hi {first_name}, thank you for booking with GPR Surveys. Our team is reviewing your job request now.\n"
+        f"We'll send you a confirmation email once it's been confirmed.\n\n"
+        f"Service: {service}\nRequested Date: {date} at {booking_time}\nLocation: {city}\n\n"
+        f"Modify your request: {modify_url}"
+    )
+    return subject, html, plain
+
+
 def _internal_notification(booking: dict) -> tuple[str, str, str]:
     job = booking.get("job_number", "")
     service = booking.get("service", "")
@@ -136,6 +185,7 @@ def _internal_notification(booking: dict) -> tuple[str, str, str]:
     address = f"{booking.get('site_address_line1', '')} {booking.get('site_city', '')} {booking.get('site_province', '')}"
     customer = booking.get("customers") or {}
     customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
+    portal_url = f"https://gprsurveys.ca/admin/job/{job}" if job else "https://gprsurveys.ca/admin/jobs"
 
     subject = f"[NEW BOOKING] {job} — {service} — {booking.get('site_city', '')}"
     html = f"""
@@ -147,9 +197,14 @@ def _internal_notification(booking: dict) -> tuple[str, str, str]:
       <strong>Customer:</strong> {customer_name} — {customer.get('email', '')}<br>
       <strong>Site Contact:</strong> {booking.get('site_contact_first_name', '')} {booking.get('site_contact_last_name', '')} {booking.get('site_contact_phone', '')}</p>
       <p><strong>Notes:</strong> {booking.get('notes', '—')}</p>
+      <p style="margin-top:16px;">
+        <a href="{portal_url}" style="display:inline-block;background:#111;color:#FFD700;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:10px 20px;border:1px solid #FFD700;">
+          View in Admin Portal →
+        </a>
+      </p>
     </div>
     """
-    plain = f"NEW BOOKING: {job}\nService: {service}\nDate: {date} at {time}\nSite: {address}\nCustomer: {customer_name}"
+    plain = f"NEW BOOKING: {job}\nService: {service}\nDate: {date} at {time}\nSite: {address}\nCustomer: {customer_name}\n\nView in admin: {portal_url}"
     return subject, html, plain
 
 
@@ -380,6 +435,8 @@ def _contact_notification(record: dict) -> tuple[str, str, str]:
     city         = record.get("site_city", "")
     province     = record.get("site_province", "")
     location     = ", ".join(filter(None, [addr1, city, province]))
+    contact_id   = record.get("id", "")
+    portal_url   = f"https://gprsurveys.ca/admin/contacts/{contact_id}" if contact_id else "https://gprsurveys.ca/admin/contacts"
 
     def _row(label, value):
         if not value:
@@ -420,9 +477,14 @@ def _contact_notification(record: dict) -> tuple[str, str, str]:
       <p style="color:#666;font-size:13px;margin:0 0 16px;">New contact form submission from gprsurveys.ca</p>
       <table style="border-collapse:collapse;margin-bottom:16px;">{rows_html}</table>
       <p style="font-size:13px;"><strong>Message:</strong><br>{message}</p>
+      <p style="margin-top:16px;">
+        <a href="{portal_url}" style="display:inline-block;background:#111;color:#FFD700;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:10px 20px;border:1px solid #FFD700;">
+          View in Admin Portal →
+        </a>
+      </p>
     </div>
     """
-    plain = f"New contact form submission from gprsurveys.ca\n\n{plain_lines}\n\nMessage:\n{message}"
+    plain = f"New contact form submission from gprsurveys.ca\n\n{plain_lines}\n\nMessage:\n{message}\n\nView in admin: {portal_url}"
     return subject, html, plain
 
 
@@ -891,7 +953,75 @@ def _tech_date_change(payload: dict) -> tuple[str, str, str]:
     return subject, html, plain
 
 
+def _billing_notification(payload: dict) -> tuple[str, str, str]:
+    """Admin notification when a customer submits their billing info via the public billing page."""
+    first_name = payload.get("first_name", "")
+    last_name  = payload.get("last_name", "")
+    email      = payload.get("email", "")
+    phone      = payload.get("phone", "") or ""
+    company    = payload.get("company", "") or ""
+
+    billing_email    = payload.get("billing_email", "") or ""
+    address_line1    = payload.get("billing_address_line1", "") or ""
+    address_line2    = payload.get("billing_address_line2", "") or ""
+    city             = payload.get("billing_city", "") or ""
+    province         = payload.get("billing_province", "") or ""
+    postal_code      = payload.get("billing_postal_code", "") or ""
+
+    full_name = f"{first_name} {last_name}".strip() or email
+
+    subject = f"[BILLING INFO] {full_name} submitted billing details"
+
+    def _row(label: str, value: str) -> str:
+        if not value:
+            return ""
+        return f'<tr><td style="padding:4px 0;color:#888888;width:140px;">{label}</td><td style="padding:4px 0;">{value}</td></tr>'
+
+    address_parts = [p for p in [address_line1, address_line2, city, province, postal_code] if p]
+    address_display = ", ".join(address_parts)
+
+    contact_rows = "".join([
+        _row("Name", full_name),
+        _row("Email", email),
+        _row("Phone", phone),
+        _row("Company", company),
+    ])
+    billing_rows = "".join([
+        _row("Billing Email", billing_email),
+        _row("Address", address_display),
+    ])
+
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC.</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">New Billing Submission</h2>
+      <p style="color:#555555;margin:0 0 24px;">A customer submitted their billing information via the website.</p>
+      <p style="margin:0 0 8px;font-weight:600;">Contact</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">{contact_rows}</table>
+      <p style="margin:0 0 8px;font-weight:600;">Billing Details</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">{billing_rows}</table>
+    </div>
+    """
+
+    plain_lines = [
+        "NEW BILLING SUBMISSION\n",
+        f"Name:    {full_name}",
+        f"Email:   {email}",
+    ]
+    if phone:    plain_lines.append(f"Phone:   {phone}")
+    if company:  plain_lines.append(f"Company: {company}")
+    plain_lines.append("")
+    if billing_email:  plain_lines.append(f"Billing Email: {billing_email}")
+    if address_display: plain_lines.append(f"Address:       {address_display}")
+    plain = "\n".join(plain_lines)
+
+    return subject, html, plain
+
+
 TEMPLATES = {
+    "booking_received":         _booking_received,
     "customer_confirmation":    _customer_confirmation,
     "customer_modification":    _customer_modification,
     "customer_cancellation":    _customer_cancellation,
@@ -910,6 +1040,7 @@ TEMPLATES = {
     "tech_date_change":         _tech_date_change,
     "time_off_request":         _time_off_request,
     "time_off_approval":        _time_off_approval,
+    "billing_notification":     _billing_notification,
 }
 
 # Templates that receive the full payload (not just booking) because they need extra state
@@ -922,7 +1053,7 @@ _RECORD_TEMPLATES = {"contact_notification"}
 _CONTACT_TEMPLATES = {"quote_email", "quote_followup"}
 
 # Internal contact-related templates (no booking, no contact recipient)
-_INTERNAL_CONTACT_TEMPLATES = {"stale_contacts_alert", "time_off_request"}
+_INTERNAL_CONTACT_TEMPLATES = {"stale_contacts_alert", "time_off_request", "billing_notification"}
 
 # Templates that receive the full payload and send to payload["email"] or payload["tech_email"]
 _DIRECT_PAYLOAD_TEMPLATES = {"technician_credentials"}
@@ -978,7 +1109,7 @@ def run(payload: dict) -> dict:
         contacts = payload.get("contacts", [])
         subject, html, plain = TEMPLATES[template](contacts)
 
-    elif template in ("time_off_request", "time_off_approval"):
+    elif template in ("time_off_request", "time_off_approval", "billing_notification"):
         subject, html, plain = TEMPLATES[template](payload)
 
     elif template in _DIRECT_PAYLOAD_TEMPLATES:
@@ -991,7 +1122,7 @@ def run(payload: dict) -> dict:
     _internal_templates = (
         "internal_notification", "internal_modification",
         "internal_cancellation", "contact_notification",
-        "stale_contacts_alert", "time_off_request",
+        "stale_contacts_alert", "time_off_request", "billing_notification",
     )
     if template in _TECH_NOTIFICATION_TEMPLATES:
         to = payload.get("tech_email", "")

@@ -12,7 +12,7 @@
    - Returns `{ calendar_event_id, calendar_owner_email }` (both stored in Step 6)
 3. Create Google Drive folder at /Jobs/{job_number}/ with subfolders: Documents/, Site Photos/, Reports/ → tools/create_drive_folder.py
    - Returns `{ drive_folder_id, drive_folder_url }`
-4. Send customer confirmation email → tools/send_email.py (template: customer_confirmation)
+4. Send booking received email to customer → tools/send_email.py (template: booking_received)
 5. Send internal notification email → tools/send_email.py (template: internal_notification)
 6. Write `calendar_event_id`, `calendar_owner_email`, `drive_folder_id`, and `drive_folder_url` back to booking record → tools/update_booking_record.py
 
@@ -26,6 +26,6 @@
 ## Expected Output
 
 - Booking record updated with `google_calendar_event_id`, `calendar_owner_email`, `google_drive_folder_id`, `google_drive_folder_url`
-- Customer receives confirmation email
+- Customer receives booking received email (pending review)
 - Internal team receives notification email
 - Google Calendar event created on `info@gprsurveys.ca` for the job date
