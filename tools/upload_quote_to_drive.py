@@ -4,7 +4,7 @@ Input:  { contact: dict, pdf_bytes: str (base64), quote_number: str (optional) }
 Output: { drive_file_id: str, drive_url: str, drive_folder_id: str, drive_folder_url: str }
 
 Creates a per-quote subfolder inside GOOGLE_DRIVE_QUOTES_FOLDER_ID with the naming
-convention: {quote_number}_{company_or_name}_{site_address_line1} {site_city}_PO_{po}
+convention: {quote_number}_{YYYY-MM-DD}_{company_or_name}_{site_address_line1} {site_city}_PO_{po}
 Then drops the PDF directly in that folder.
 """
 
@@ -22,6 +22,10 @@ QUOTES_FOLDER_ID = "1zOwNLwjfjQX438vNE7SZNzU4lLcrwExr"
 
 
 def _build_folder_name(contact: dict, quote_number: str) -> str:
+    # Quote creation date (YYYY-MM-DD) from created_at ISO timestamp
+    created_at = (contact.get("created_at") or "").strip()
+    quote_date = created_at[:10] if created_at else ""
+
     # Company or first+last name
     company = (contact.get("company") or "").strip()
     if company:
@@ -39,7 +43,7 @@ def _build_folder_name(contact: dict, quote_number: str) -> str:
     # PO (quotes don't have a PO at this stage — kept for naming consistency)
     po = (contact.get("purchase_order") or "").strip()
 
-    return f"{quote_number}_{name_part}_{address_part}_PO_{po}"
+    return f"{quote_number}_{quote_date}_{name_part}_{address_part}_PO_{po}"
 
 
 def _build_pdf_filename(contact: dict, quote_number: str) -> str:

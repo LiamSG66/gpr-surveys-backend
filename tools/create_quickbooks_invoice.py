@@ -52,7 +52,7 @@ def _get_qb_client() -> QuickBooks:
     auth_client = AuthClient(
         client_id=client_id,
         client_secret=client_secret,
-        redirect_uri="http://localhost:8080/callback",
+        redirect_uri="https://developer.intuit.com/v2/OAuth2Playground/RedirectUrl",
         environment=environment,
     )
     # Refresh to get a valid access token
@@ -169,20 +169,24 @@ def run(payload: dict) -> dict:
     bill_addr.Country = "Canada"
     invoice.BillAddr = bill_addr
 
+    print(f"[qb_invoice] job_field_id={job_field_id!r} job_number={job_number!r} po_field_id={po_field_id!r} po_number={po_number!r}")
     # Custom fields (Job# and PO#)
     custom_fields = []
-    if job_field_id and job_number:
+    if job_field_id and job_field_id != "PENDING" and job_number:
         custom_fields.append({
             "DefinitionId": job_field_id,
+            "Name":         "Job Number",
             "StringValue":  job_number,
             "Type":         "StringType",
         })
-    if po_field_id and po_number:
+    if po_field_id and po_field_id != "PENDING" and po_number:
         custom_fields.append({
             "DefinitionId": po_field_id,
+            "Name":         "P.O. Number",
             "StringValue":  po_number,
             "Type":         "StringType",
         })
+    print(f"[qb_invoice] custom_fields={custom_fields!r}")
     if custom_fields:
         invoice.CustomField = custom_fields
 
@@ -195,6 +199,7 @@ def run(payload: dict) -> dict:
     invoice.Line = [line]
 
     invoice.save(qb=qb)
+    print(f"[qb_invoice] saved invoice id={invoice.Id} CustomField={getattr(invoice, 'CustomField', 'MISSING')}")
 
     realm_id    = os.environ.get("QB_REALM_ID", "")
     invoice_id  = invoice.Id

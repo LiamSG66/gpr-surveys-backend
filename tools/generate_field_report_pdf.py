@@ -71,18 +71,6 @@ UTILITY_ROWS = [
 SIGNAL_COLS = ["Strong Signal", "Average Signal", "Poor Signal", "Not Found", "Out of Scope"]
 DEPTH_COLS  = ["0-0.3m", "0.3-0.6m", "0.6-1.0m", "1.0-1.4m", "1.4-1.8m", "1.8-2.2m", "≥2.2m"]
 
-WORK_PERFORMED_LABELS = {
-    "site_assessment":    "Pre-mobilization site assessment completed",
-    "bc1_confirmed":      "BC1 call number confirmed and on file",
-    "safety_ppe":         "Safety / PPE requirements met",
-    "equipment_calibrated": "Equipment calibrated and tested on site",
-    "scan_grid":          "Scan grid laid out and documented",
-    "utilities_marked":   "Underground utilities marked with paint / flags",
-    "photos_taken":       "Site photos taken",
-    "reinspection":       "Re-inspection of marked area completed",
-    "area_safe":          "Area left in safe condition",
-}
-
 
 # ─── Image helpers ────────────────────────────────────────────────────────────
 
@@ -361,14 +349,9 @@ def _page2(rd: dict, styles, include_info_table: bool = False) -> list:
 
     story.append(_section("Site Information", styles))
     rows = [
-        ("Site Contact",  rd.get("site_contact_name", "")),
-        ("Phone",         rd.get("site_contact_phone", "")),
-        ("Scan Method",   rd.get("scan_method", "")),
-        ("Surface Types", ", ".join(rd.get("surface_types", []))),
-        ("Depth of Investigation", rd.get("depth_of_investigation", "")),
-        ("Traffic Control",  _yna_display(rd.get("traffic_control", ""))),
-        ("Confined Space",   _yna_display(rd.get("confined_space", ""))),
-        ("Prior to Breaking Ground Confirmed", _yna_display(rd.get("prior_to_breaking", ""))),
+        ("Site Contact",    rd.get("site_contact_name", "")),
+        ("Phone",           rd.get("site_contact_phone", "")),
+        ("Traffic Control", _yna_display(rd.get("traffic_control", ""))),
     ]
     story.append(_info_table(rows, styles))
     story.append(Spacer(1, 0.08*inch))
@@ -382,58 +365,24 @@ def _page2(rd: dict, styles, include_info_table: bool = False) -> list:
     story.append(_body(rd.get("project_scope", "Subsurface utility survey conducted on site."), styles))
 
     # Equipment deployed
-    story.append(_section("Equipment Deployed", styles))
+    eq = rd.get("equipment_deployed", {})
+    eq_map = [
+        ("gpr",           "Ground Penetrating Radar (GPR)"),
+        ("em",            "Electromagnetic Induction (EM)"),
+        ("ferromagnetic", "Ferromagnetic Locator"),
+        ("ductRodders",   "Detectable Duct Rodders"),
+        ("videoCamera",   "Video Camera Inspection"),
+    ]
+    eq_items = [label for key, label in eq_map if eq.get(key)]
+    other = (eq.get("other") or "").strip()
+    if other:
+        eq_items.append(f"Other: {other}")
 
-    gpr_eq = rd.get("gpr_equipment", {})
-    em_eq  = rd.get("em_equipment", {})
-    freqs  = rd.get("frequencies", "")
-
-    eq_labels = []
-    for name, checked in gpr_eq.items():
-        eq_labels.append((f"GPR — {name}", "Yes" if checked else "No"))
-    for name, checked in em_eq.items():
-        eq_labels.append((f"EM — {name}", "Yes" if checked else "No"))
-
-    if eq_labels:
-        eq_data = [[Paragraph(f"<b>{lbl}</b>", styles["Label"]),
-                    Paragraph(val, styles["TableCellCenter"])] for lbl, val in eq_labels]
-        if freqs:
-            eq_data.append([Paragraph("<b>Frequencies / Antennas</b>", styles["Label"]),
-                             Paragraph(freqs, styles["Value"])])
-        t = Table(eq_data, colWidths=[4.0*inch, 2.3*inch])
-        t.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 0.25, LIGHT_GRAY),
-            ("BACKGROUND", (0, 0), (0, -1), HexColor("#EAF0F8")),
-            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [ROW_ALT, white]),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ]))
-        story.append(t)
+    if eq_items:
+        story.append(_section("Equipment Deployed", styles))
+        for item in eq_items:
+            story.append(Paragraph(f"• {item}", styles["Body"]))
         story.append(Spacer(1, 0.08*inch))
-
-    # Work performed checklist
-    story.append(_section("Work Performed", styles))
-    wp = rd.get("work_performed", {})
-    wp_data = []
-    for key, label in WORK_PERFORMED_LABELS.items():
-        done = wp.get(key, False)
-        mark = "✓" if done else "☐"
-        wp_data.append([Paragraph(mark, styles["TableCellCenter"]),
-                         Paragraph(label, styles["TableCell"])])
-    if wp_data:
-        t = Table(wp_data, colWidths=[0.35*inch, 5.9*inch])
-        t.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 0.25, LIGHT_GRAY),
-            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [ROW_ALT, white]),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("ALIGN", (0, 0), (0, -1), "CENTER"),
-        ]))
-        story.append(t)
 
     return story
 
@@ -474,19 +423,27 @@ def _page3(rd: dict, styles) -> list:
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ]))
     story.append(t)
+
+    signal_quality_remarks = rd.get("signal_quality_remarks", "")
+    if signal_quality_remarks:
+        story.append(Spacer(1, 0.1*inch))
+        story.append(_section("Signal Quality Remarks", styles))
+        story.append(_body(signal_quality_remarks, styles))
+
     story.append(Spacer(1, 0.15*inch))
 
-    # Depth matrix
+    # Depth matrix — utilities_depth values may be list (multi-select) or str (legacy)
     story.append(_section("Average Utility Depths", styles))
     header2 = [Paragraph("Utility", styles["TableHeader"])] + [
         Paragraph(c, styles["TableHeader"]) for c in DEPTH_COLS
     ]
     dep_data = [header2]
     for util in UTILITY_ROWS:
-        val = utilities_depth.get(util, "")
+        raw = utilities_depth.get(util, [])
+        selected = raw if isinstance(raw, list) else ([raw] if raw else [])
         row = [Paragraph(util, styles["TableCell"])]
         for col in DEPTH_COLS:
-            row.append(Paragraph("✓" if val == col else "", styles["TableCellCenter"]))
+            row.append(Paragraph("✓" if col in selected else "", styles["TableCellCenter"]))
         dep_data.append(row)
 
     col_w_dep = [1.5*inch] + [0.79*inch] * len(DEPTH_COLS)
@@ -509,7 +466,7 @@ def _page3(rd: dict, styles) -> list:
     depth_remarks = rd.get("depth_remarks", "")
     if depth_remarks:
         story.append(Spacer(1, 0.1*inch))
-        story.append(_section("Remarks on Anomalies / Signal Loss", styles))
+        story.append(_section("Remarks on Utilities Located and/or Anomalies", styles))
         story.append(_body(depth_remarks, styles))
 
     return story
@@ -563,78 +520,104 @@ def _page4(rd: dict, styles) -> list:
     return story
 
 
-# ─── Page 5 — Disclaimer & Equipment Specs ────────────────────────────────────
+# ─── Page 5 — Disclaimer & Limitations (hardcoded) ───────────────────────────
 
 def _page5(rd: dict, styles) -> list:
     story = []
 
     story.append(_section("Disclaimer & Limitations", styles))
-    story.append(_body(
-        "<b>Ground Penetrating Radar (GPR) Limitations:</b> GPR is a non-destructive geophysical method "
-        "that uses radar pulses to image the subsurface. While GPR is effective in many environments, "
-        "its performance can be affected by soil conditions (e.g., high clay content, saline soils), "
-        "depth of target, target material (conductive vs. non-conductive), and surface conditions. "
-        "GPR may not detect all underground utilities. Results should be used as a guide and not a "
-        "guarantee of subsurface conditions. Hydro-vacuum excavation is recommended to confirm the "
-        "location, depth, and nature of all targets prior to any intrusive work.",
-        styles,
-    ))
-    story.append(Spacer(1, 0.08*inch))
-    story.append(_body(
-        "<b>Electromagnetic (EM) Locating Limitations:</b> EM induction methods are effective for "
-        "locating conductive utilities (metallic pipes and cables). Non-conductive utilities (e.g., "
-        "plastic pipes, fibre-optic cables) may not be detectable unless a tracer wire is present. "
-        "Results depend on the ability to apply a signal to the utility and the presence of interference "
-        "from adjacent utilities. GPR is used in conjunction with EM locating to improve detection "
-        "accuracy for non-conductive utilities.",
-        styles,
-    ))
-    story.append(Spacer(1, 0.12*inch))
+    story.append(Spacer(1, 0.06*inch))
 
+    # ── GPR Limitations ──
+    story.append(Paragraph("<b>Ground Penetrating Radar (GPR) Limitations</b>", styles["Body"]))
+    for bullet in [
+        "GPR accuracy can be affected by soil composition, moisture levels, and subsurface conditions",
+        "Depth estimates are approximate; GPR signals may be distorted by varying subsurface materials",
+        "Non-metallic utilities (PVC, fiber optic, clay pipes) may not be detected unless backfilled "
+        "materials support quality GPR data or accessible entry points (e.g., manholes) allow detection "
+        "of duct rods/pigging",
+        "Obstructions (e.g., packed vehicles, steel decks, metal frame, curbs, fence lines, walls, "
+        "proximity to buildings) can reduce grid coverage and signal accuracy. We recommend removing "
+        "obstacles wherever possible or accepting limited coverage and potential undetected areas.",
+    ]:
+        story.append(Paragraph(f"• {bullet}", styles["BodySmall"]))
+    story.append(Spacer(1, 0.1*inch))
+
+    # ── EM Limitations ──
+    story.append(Paragraph("<b>Electromagnetic (EM) Locating Limitations</b>", styles["Body"]))
+    for bullet in [
+        "EM locators cannot detect non-conductive materials (e.g., plastic or clay pipes) unless "
+        "accessible entry points are available for detectable rod/pigging",
+        "Depth readings may be affected by stray interference, power lines, and soil conductivity variations",
+        "Depth readings are estimates and should be confirmed with non-destructive methods",
+    ]:
+        story.append(Paragraph(f"• {bullet}", styles["BodySmall"]))
+    story.append(Spacer(1, 0.14*inch))
+
+    # ── Field Equipment Specifications ──
     story.append(_section("Field Equipment Specifications", styles))
-    eq_specs = [
-        ["Category", "Equipment", "Specification"],
-        ["GPR", "GSSI SIR 4000", "400 MHz antenna — depth range 0–3 m"],
-        ["EM", "Radiodetection RD7200", "Multi-frequency active/passive locator"],
-        ["Ferromagnetic", "Schonstedt Maggie", "Magnetic anomaly locator"],
-    ]
-    col_w = [1.2*inch, 2.4*inch, 2.7*inch]
-    t = Table(eq_specs, colWidths=col_w)
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), BLUE),
-        ("TEXTCOLOR",  (0, 0), (-1, 0), white),
-        ("FONTNAME",   (0, 0), (-1, 0), FONT_BOLD),
-        ("FONTSIZE",   (0, 0), (-1, -1), 8),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [ROW_ALT, white]),
-        ("GRID", (0, 0), (-1, -1), 0.25, LIGHT_GRAY),
-        ("TOPPADDING",    (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ]))
-    story.append(t)
-    story.append(Spacer(1, 0.15*inch))
+    story.append(Spacer(1, 0.06*inch))
 
-    story.append(_section("Prior to Breaking Ground Checklist", styles))
-    checklist = [
-        "Contact BC One Call (BC1C) and obtain a locate request number",
-        "Verify all utility markings are visible and current",
-        "Conduct a site risk assessment before any intrusive work",
-        "Hand dig or hydro-vacuum within 1.5 m of all marked utilities",
-        "Avoid the use of pointed tools near marked utility locations",
-        "Follow all applicable WorkSafeBC regulations and site-specific safety plans",
-        "Ensure all personnel have appropriate PPE and are aware of emergency protocols",
-        "Have an emergency response plan in place prior to excavation",
-    ]
-    for item in checklist:
-        story.append(Paragraph(f"☐  {item}", styles["Body"]))
+    # GPR System
+    story.append(Paragraph("<b>Ground Penetrating Radar (GPR) System</b>", styles["Body"]))
+    for line in [
+        "• Model: GSSI SIR-4000",
+        "• Antenna: 400 MHz shielded antenna (center frequency)",
+        "• Depth Range: 2–3 meters (depending on soil conditions, conductivity, and moisture)",
+        "• Applications: Mid-depth subsurface imaging for locating underground storage tanks (USTs), "
+        "buried utilities, voids, and structural features",
+        "• Key Features: Advanced digital signal processing, real-time data acquisition, GPS integration, "
+        "and exportable georeferenced data",
+    ]:
+        story.append(Paragraph(line, styles["BodySmall"]))
+    story.append(Spacer(1, 0.09*inch))
 
-    story.append(Spacer(1, 0.15*inch))
-    story.append(_section("Prepared By", styles))
-    for line in ["Louis Gosselin", "Managing Partner", "LG@gprsurveys.ca",
-                 "550-2950 Douglas St, Victoria BC", "(250) 896-7576", "gprsurveys.ca"]:
-        story.append(Paragraph(line, styles["Value"]))
+    # EM Locator
+    story.append(Paragraph("<b>Electromagnetic (EM) Locator</b>", styles["Body"]))
+    for line in [
+        "• Model: Radio detection RD7200 (or similar)",
+        "• Capabilities: Detection of conductive underground utilities, including metallic pipes, cables, "
+        "and tracer wires",
+        "• Operating Frequencies: Multiple active frequencies, passive power detection, and radio modes",
+        "• Key Features: Precision locate mode, depth estimation, signal strength indication, and "
+        "interference rejection",
+    ]:
+        story.append(Paragraph(line, styles["BodySmall"]))
+    story.append(Spacer(1, 0.09*inch))
+
+    # Ferromagnetic Locator
+    story.append(Paragraph("<b>Ferromagnetic (FM) Locator</b>", styles["Body"]))
+    for line in [
+        "• Model: Schonstedt Maggie Magnetic Locator with Visual Display",
+        "• Capabilities: Detects buried ferrous objects such as underground storage tanks (USTs), "
+        "steel drums, valve boxes, manhole covers, and other iron or steel items",
+        "• Depth Range: Up to ~4–5 meters, depending on object size and soil conditions",
+        "• Key Features:",
+        "    – High-sensitivity detection of ferrous materials",
+        "    – Visual display with signal strength indicators",
+    ]:
+        story.append(Paragraph(line, styles["BodySmall"]))
+    story.append(Spacer(1, 0.2*inch))
+
+    # Certification logos (reuse footer logo rendering logic)
+    cert_logos = [(CERT_CCGA_PATH, 0.9*inch), (CERT_BC1C_PATH, 0.9*inch), (CERT_WSBC_PATH, 1.1*inch)]
+    logo_data = []
+    for cert_path, lw in cert_logos:
+        img_src = _load_image(cert_path)
+        if img_src is not None:
+            try:
+                logo_data.append(RLImage(img_src, width=lw, height=0.5*inch, kind="proportional"))
+            except Exception:
+                pass
+    if logo_data:
+        row = Table([logo_data], colWidths=[1.2*inch, 1.2*inch, 1.4*inch])
+        row.setStyle(TableStyle([
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(row)
 
     return story
 

@@ -1,6 +1,6 @@
 """
 Create a Google Drive folder structure for a booking.
-Folder name format: {job_number}_{company_or_name}_{address_line1} {city}_PO_{purchase_order}
+Folder name format: {job_number}_{YYYY-MM-DD}_{company_or_name}_{address_line1} {city}_PO_{purchase_order}
 Creates subfolders: Documents/, Site Photos/, Reports/
 Returns: { drive_folder_id: str, drive_folder_url: str }
 
@@ -29,6 +29,9 @@ def _create_folder(service, name: str, parent_id: str) -> str:
 def _build_folder_name(booking: dict) -> str:
     job_number = booking.get("job_number", "UNKNOWN")
 
+    # Job date (YYYY-MM-DD) — the day the job is scheduled for
+    job_date = (booking.get("date") or "").strip()[:10]
+
     # Company if present, else customer first + last name
     customer = booking.get("customers") or {}
     company = (customer.get("company") or "").strip()
@@ -48,7 +51,7 @@ def _build_folder_name(booking: dict) -> str:
     po = (booking.get("purchase_order") or "").strip()
     po_part = f"PO_{po}"
 
-    return f"{job_number}_{name_part}_{address_part}_{po_part}"
+    return f"{job_number}_{job_date}_{name_part}_{address_part}_{po_part}"
 
 
 def run(payload: dict) -> dict:

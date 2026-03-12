@@ -27,8 +27,8 @@ CLIENT_SECRET = os.environ.get("QB_CLIENT_SECRET", "")
 REDIRECT_URI  = "https://developer.intuit.com/v2/OAuth2Playground/RedirectUrl"
 ENV_FILE      = os.path.join(os.path.dirname(__file__), "..", ".env")
 
-# Toggle to True for sandbox (default), False for production
-USE_SANDBOX = True
+# Toggle to True for sandbox, False for production
+USE_SANDBOX = False
 ENVIRONMENT = "sandbox" if USE_SANDBOX else "production"
 
 
