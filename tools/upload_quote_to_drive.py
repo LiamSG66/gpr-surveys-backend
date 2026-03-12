@@ -18,8 +18,7 @@ from config import settings
 SCOPES        = ["https://www.googleapis.com/auth/drive"]
 DRIVE_SUBJECT = "info@gprsurveys.ca"
 
-# 2026 Quotes folder — hardcoded; update each year or add a config setting
-QUOTES_YEAR_FOLDER_ID = "1iN9dyyZeA9DsiZ0Kmjv_pJ0L5s_H7i-F"
+QUOTES_FOLDER_ID = "1zOwNLwjfjQX438vNE7SZNzU4lLcrwExr"
 
 
 def _build_folder_name(contact: dict, quote_number: str) -> str:
@@ -81,7 +80,7 @@ def run(payload: dict) -> dict:
     service = get_google_service("drive", "v3", subject=DRIVE_SUBJECT, scopes=SCOPES)
 
     # Create per-quote subfolder inside the year folder
-    quote_folder_id = _create_folder(service, folder_name, QUOTES_YEAR_FOLDER_ID)
+    quote_folder_id = _create_folder(service, folder_name, QUOTES_FOLDER_ID)
 
     # Upload PDF directly into the quote folder
     media = MediaIoBaseUpload(
