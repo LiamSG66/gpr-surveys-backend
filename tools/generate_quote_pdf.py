@@ -752,7 +752,16 @@ def _project_overview_page(quote_data, site_image_data, styles):
     site_img_loaded = False
     if site_image_data:
         try:
-            tmp = io.BytesIO(site_image_data)
+            # If the uploaded file is a PDF, render first page to PNG via PyMuPDF
+            image_bytes = site_image_data
+            if site_image_data[:4] == b"%PDF":
+                import fitz  # pymupdf
+                pdf_doc = fitz.open(stream=site_image_data, filetype="pdf")
+                page = pdf_doc[0]
+                pix = page.get_pixmap(dpi=150)
+                image_bytes = pix.tobytes("png")
+                pdf_doc.close()
+            tmp = io.BytesIO(image_bytes)
             img = RLImage(tmp, width=6.5 * inch, height=5.5 * inch, kind="proportional")
             story.append(img)
             site_img_loaded = True

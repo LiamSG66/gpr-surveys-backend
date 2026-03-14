@@ -1070,6 +1070,10 @@ def run(payload: dict) -> dict:
         raise ValueError(f"send_email: unknown template '{template}'")
 
     # Conditional skips — keep workflow steps unconditional; skip logic lives here
+    if template == "booking_received" and (payload.get("booking") or {}).get("source") == "admin":
+        logger.info("[send_email] Skipping booking_received — admin-created booking")
+        return {"customer_email_skipped": True}
+
     if template == "customer_modification" and payload.get("skip_customer_email"):
         logger.info("[send_email] Skipping customer_modification — skip_customer_email=True")
         return {"customer_email_skipped": True}

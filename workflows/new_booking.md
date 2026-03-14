@@ -13,6 +13,7 @@
 3. Create Google Drive folder at /Jobs/{job_number}/ with subfolders: Documents/, Site Photos/, Reports/ → tools/create_drive_folder.py
    - Returns `{ drive_folder_id, drive_folder_url }`
 4. Send booking received email to customer → tools/send_email.py (template: booking_received)
+   - Skipped automatically if `booking.source == 'admin'` (admin-created bookings do not notify the customer)
 5. Send internal notification email → tools/send_email.py (template: internal_notification)
 6. Write `calendar_event_id`, `calendar_owner_email`, `drive_folder_id`, and `drive_folder_url` back to booking record → tools/update_booking_record.py
 
