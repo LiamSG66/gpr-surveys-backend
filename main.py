@@ -200,6 +200,24 @@ async def webhook_dispatcher(request: Request) -> dict:
             logger.error(f"[webhook_dispatcher/new_application] {e}")
             return {"status": "error", "message": str(e)}
 
+    # ── job_applications UPDATE → rejected ────────────────────────────────────
+    if table == "job_applications" and event_type == "UPDATE":
+        application_id = record.get("id")
+        new_status     = record.get("status")
+        old_status     = (old_record or {}).get("status")
+
+        if new_status == "rejected" and old_status != "rejected":
+            if not application_id:
+                return {"error": "No application id in payload"}
+            try:
+                run_workflow("reject_application", {"application_id": application_id})
+                return {"status": "ok", "workflow": "reject_application", "application_id": application_id}
+            except Exception as e:
+                logger.error(f"[webhook_dispatcher/reject_application] {e}")
+                return {"status": "error", "message": str(e)}
+
+        return {"status": "skipped", "reason": f"no handler for job_applications UPDATE with status={new_status!r}"}
+
     # ── Unrecognised event ────────────────────────────────────────────────────
     logger.warning(f"[webhook_dispatcher] No handler for table={table!r} type={event_type!r}")
     return {"status": "skipped", "reason": f"no handler for {table}/{event_type}"}

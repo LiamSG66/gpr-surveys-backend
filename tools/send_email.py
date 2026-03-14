@@ -1042,7 +1042,7 @@ def _new_application(payload: dict) -> tuple[str, str, str]:
 
     full_name    = f"{first_name} {last_name}".strip() or "Unknown Candidate"
     portal_url   = (
-        f"https://gprsurveys.ca/admin/recruiting/applications/{application_id}"
+        f"https://gprsurveys.ca/admin/careers/{application_id}"
         if application_id else "https://gprsurveys.ca/admin/recruiting"
     )
 
