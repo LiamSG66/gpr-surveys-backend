@@ -13,10 +13,24 @@ Returns: { "attachable_id": str }
 
 import os
 import base64
+import subprocess
 
 from intuitlib.client import AuthClient
 from quickbooks import QuickBooks
 from quickbooks.objects.attachable import Attachable, AttachableRef
+
+
+def _persist_new_refresh_token(new_token: str) -> None:
+    """Write the rotated QB refresh token back to Modal secrets so it survives across invocations."""
+    try:
+        subprocess.run(
+            ["modal", "secret", "update", "gpr-surveys-secrets", f"QB_REFRESH_TOKEN={new_token}"],
+            check=True,
+            capture_output=True,
+        )
+        print("[qb_auth] Rotated refresh token saved to Modal secrets.")
+    except Exception as exc:
+        print(f"[qb_auth] WARNING: could not persist rotated refresh token: {exc}")
 
 
 def _get_qb_client() -> QuickBooks:
@@ -33,6 +47,10 @@ def _get_qb_client() -> QuickBooks:
         environment=environment,
     )
     auth_client.refresh(refresh_token=refresh_token)
+
+    # Persist the new rotated token so the next invocation doesn't get invalid_grant.
+    if auth_client.refresh_token and auth_client.refresh_token != refresh_token:
+        _persist_new_refresh_token(auth_client.refresh_token)
 
     return QuickBooks(
         auth_client=auth_client,

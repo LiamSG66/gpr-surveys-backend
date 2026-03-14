@@ -29,6 +29,7 @@ Returns:
 """
 
 import os
+import subprocess
 from datetime import datetime
 
 from intuitlib.client import AuthClient
@@ -41,6 +42,20 @@ from quickbooks.objects.base import Ref, PhoneNumber, EmailAddress, Address as B
 
 
 # ─── Auth ────────────────────────────────────────────────────────────────────
+
+def _persist_new_refresh_token(new_token: str) -> None:
+    """Write the rotated QB refresh token back to Modal secrets so it survives across invocations."""
+    try:
+        subprocess.run(
+            ["modal", "secret", "update", "gpr-surveys-secrets", f"QB_REFRESH_TOKEN={new_token}"],
+            check=True,
+            capture_output=True,
+        )
+        print("[qb_auth] Rotated refresh token saved to Modal secrets.")
+    except Exception as exc:
+        # Non-fatal: log and continue. Invoice will still be created this run.
+        print(f"[qb_auth] WARNING: could not persist rotated refresh token: {exc}")
+
 
 def _get_qb_client() -> QuickBooks:
     client_id     = os.environ["QB_CLIENT_ID"]
@@ -55,8 +70,12 @@ def _get_qb_client() -> QuickBooks:
         redirect_uri="https://developer.intuit.com/v2/OAuth2Playground/RedirectUrl",
         environment=environment,
     )
-    # Refresh to get a valid access token
+    # Refresh to get a valid access token. QBO rotates the refresh token on each call.
     auth_client.refresh(refresh_token=refresh_token)
+
+    # Persist the new rotated token so the next invocation doesn't get invalid_grant.
+    if auth_client.refresh_token and auth_client.refresh_token != refresh_token:
+        _persist_new_refresh_token(auth_client.refresh_token)
 
     return QuickBooks(
         auth_client=auth_client,
