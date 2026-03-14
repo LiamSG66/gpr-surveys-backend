@@ -28,6 +28,11 @@ TOOL_ALIASES = {
     "generate_quote_pdf":          "generate_quote_pdf",
     "upload_quote_to_drive":       "upload_quote_to_drive",
     "fetch_quote_pdf_from_drive":  "fetch_quote_pdf_from_drive",
+    "fetch_application":           "fetch_application",
+    "score_resume":                "score_resume",
+    "update_candidate_record":     "update_candidate_record",
+    "create_interview_calendar_event": "create_interview_calendar_event",
+    "update_interview_slot":       "update_interview_slot",
 }
 
 

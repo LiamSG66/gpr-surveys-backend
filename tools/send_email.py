@@ -4,7 +4,8 @@ Supports templates: booking_received, customer_confirmation, internal_notificati
                     customer_modification, booking_reminder, contact_notification,
                     quote_email, stale_contacts_alert, quote_followup,
                     technician_assignment, technician_unassignment, tech_date_change,
-                    technician_credentials, time_off_request, google_review_request
+                    technician_credentials, time_off_request, google_review_request,
+                    new_application, application_received, interview_scheduled, application_rejected
 """
 
 import base64
@@ -1028,6 +1029,258 @@ def _billing_notification(payload: dict) -> tuple[str, str, str]:
     return subject, html, plain
 
 
+def _new_application(payload: dict) -> tuple[str, str, str]:
+    """Admin notification when a new job application is received."""
+    first_name   = payload.get("first_name", "")
+    last_name    = payload.get("last_name", "")
+    candidate_email = payload.get("email", "") or payload.get("candidate_email", "")
+    phone        = payload.get("phone", "") or ""
+    job_title    = payload.get("job_title", "the position")
+    ai_score     = payload.get("ai_score")
+    resume_url   = payload.get("resume_url", "")
+    application_id = payload.get("application_id", "") or payload.get("id", "")
+
+    full_name    = f"{first_name} {last_name}".strip() or "Unknown Candidate"
+    portal_url   = (
+        f"https://gprsurveys.ca/admin/recruiting/applications/{application_id}"
+        if application_id else "https://gprsurveys.ca/admin/recruiting"
+    )
+
+    score_display = f"{ai_score}/10" if ai_score is not None else "Pending"
+    ai_score_summary = payload.get("ai_score_summary", "")
+    recommendation   = payload.get("recommendation", "")
+
+    def _row(label: str, value: str) -> str:
+        if not value:
+            return ""
+        return (
+            f"<tr>"
+            f"<td style='padding:6px 0;color:#888888;font-size:13px;width:140px;'>{label}</td>"
+            f"<td style='padding:6px 0;font-size:13px;'>{value}</td>"
+            f"</tr>"
+        )
+
+    rows_html = (
+        _row("Candidate", full_name)
+        + _row("Email", candidate_email)
+        + _row("Phone", phone)
+        + _row("Position", job_title)
+        + _row("AI Score", score_display)
+        + _row("Recommendation", recommendation)
+    )
+
+    resume_link = (
+        f'<p style="margin-top:16px;"><a href="{resume_url}" style="color:#1F4E79;font-weight:600;">View Resume →</a></p>'
+        if resume_url else ""
+    )
+    ai_block = (
+        f'<p style="margin-top:16px;"><strong>AI Summary:</strong><br><span style="color:#555555;">{ai_score_summary}</span></p>'
+        if ai_score_summary else ""
+    )
+
+    subject = f"[NEW APPLICATION] {full_name} — {job_title}"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC. — RECRUITING</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">New Application Received</h2>
+      <p style="color:#555555;margin:0 0 24px;">A new application has been submitted for <strong>{job_title}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">{rows_html}</table>
+      {ai_block}
+      {resume_link}
+      <p style="margin-top:24px;">
+        <a href="{portal_url}" style="display:inline-block;background:#1F4E79;color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
+          Review Application
+        </a>
+      </p>
+    </div>
+    """
+    plain_lines = [
+        f"NEW APPLICATION: {full_name} — {job_title}\n",
+        f"Candidate: {full_name}",
+        f"Email:     {candidate_email}",
+    ]
+    if phone:              plain_lines.append(f"Phone:     {phone}")
+    plain_lines.append(f"Position:  {job_title}")
+    plain_lines.append(f"AI Score:  {score_display}")
+    if recommendation:     plain_lines.append(f"AI Recommendation: {recommendation}")
+    if ai_score_summary:   plain_lines.append(f"\nAI Summary: {ai_score_summary}")
+    if resume_url:         plain_lines.append(f"\nResume: {resume_url}")
+    plain_lines.append(f"\nReview in admin: {portal_url}")
+    plain = "\n".join(plain_lines)
+
+    return subject, html, plain
+
+
+def _application_received(payload: dict) -> tuple[str, str, str]:
+    """Acknowledgment email sent to the candidate after they apply."""
+    first_name = payload.get("first_name", "")
+    job_title  = payload.get("job_title", "the position")
+
+    subject = f"We received your application — {job_title}"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC.</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Application Received</h2>
+      <p style="color:#555555;margin-bottom:24px;">
+        Dear {first_name},<br/><br/>
+        Thank you for applying for the <strong>{job_title}</strong> position at GPR Surveys Inc.
+        We have received your application and our team will review it shortly.
+      </p>
+      <p style="color:#555555;margin-bottom:24px;">
+        If your qualifications are a match, we will reach out within the next few business days
+        to discuss next steps. We appreciate your interest in joining our team.
+      </p>
+      <p style="color:#555555;font-size:13px;border-top:1px solid #dddddd;padding-top:20px;margin-top:32px;">
+        GPR Surveys Inc.<br/>
+        <a href="mailto:info@gprsurveys.ca" style="color:#1F4E79;">info@gprsurveys.ca</a>
+      </p>
+    </div>
+    """
+    plain = (
+        f"Dear {first_name},\n\n"
+        f"Thank you for applying for the {job_title} position at GPR Surveys Inc. "
+        f"We have received your application and our team will review it shortly.\n\n"
+        f"If your qualifications are a match, we will reach out within the next few business days "
+        f"to discuss next steps. We appreciate your interest in joining our team.\n\n"
+        f"GPR Surveys Inc.\ninfo@gprsurveys.ca"
+    )
+    return subject, html, plain
+
+
+def _interview_scheduled(payload: dict) -> tuple[str, str, str]:
+    """Confirmation email sent to the candidate when an interview is scheduled."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    first_name       = payload.get("candidate_first_name", "") or payload.get("first_name", "")
+    job_title        = payload.get("job_title", "the position")
+    scheduled_at     = payload.get("scheduled_at", "")
+    duration_minutes = int(payload.get("duration_minutes") or 60)
+    location_or_link = payload.get("location_or_link", "") or payload.get("meet_link", "")
+    notes            = payload.get("notes", "")
+
+    # Format the date/time in Pacific time
+    interview_datetime = "TBD"
+    if scheduled_at:
+        try:
+            dt = datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+            dt_pacific = dt.astimezone(ZoneInfo("America/Vancouver"))
+            interview_datetime = dt_pacific.strftime("%A, %B %-d, %Y at %-I:%M %p %Z")
+        except Exception:
+            interview_datetime = scheduled_at
+
+    def _row(label: str, value: str) -> str:
+        if not value:
+            return ""
+        return (
+            f"<tr>"
+            f"<td style='padding:8px 0;color:#888888;font-size:13px;width:140px;border-bottom:1px solid #f0f0f0;'>{label}</td>"
+            f"<td style='padding:8px 0;font-size:13px;border-bottom:1px solid #f0f0f0;'>{value}</td>"
+            f"</tr>"
+        )
+
+    rows_html = (
+        _row("Position", job_title)
+        + _row("Date & Time", interview_datetime)
+        + _row("Duration", f"{duration_minutes} minutes")
+        + _row("Location / Link", location_or_link)
+    )
+
+    notes_block = (
+        f'<p style="margin-top:16px;color:#555555;"><strong>Additional Notes:</strong><br>{notes}</p>'
+        if notes else ""
+    )
+
+    subject = f"Interview Scheduled — {job_title} at GPR Surveys"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC.</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Your Interview is Confirmed</h2>
+      <p style="color:#555555;margin-bottom:24px;">
+        Dear {first_name},<br/><br/>
+        We are pleased to invite you to interview for the <strong>{job_title}</strong> position
+        at GPR Surveys Inc. Please find the details below.
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">{rows_html}</table>
+      {notes_block}
+      <p style="color:#555555;margin-top:24px;margin-bottom:24px;">
+        Please come prepared to discuss your relevant experience and ask any questions you may have.
+        If you need to reschedule or have any questions beforehand, please reply to this email.
+      </p>
+      <p style="color:#555555;font-size:13px;border-top:1px solid #dddddd;padding-top:20px;margin-top:32px;">
+        GPR Surveys Inc.<br/>
+        <a href="mailto:info@gprsurveys.ca" style="color:#1F4E79;">info@gprsurveys.ca</a>
+      </p>
+    </div>
+    """
+    plain_lines = [
+        f"Dear {first_name},\n",
+        f"Your interview for the {job_title} position at GPR Surveys Inc. has been confirmed.\n",
+        f"Date & Time: {interview_datetime}",
+        f"Duration:    {duration_minutes} minutes",
+    ]
+    if location_or_link:  plain_lines.append(f"Location:    {location_or_link}")
+    if notes:             plain_lines.append(f"\nNotes: {notes}")
+    plain_lines.append(
+        "\nPlease come prepared to discuss your experience. "
+        "Reply to this email if you need to reschedule.\n\n"
+        "GPR Surveys Inc.\ninfo@gprsurveys.ca"
+    )
+    plain = "\n".join(plain_lines)
+
+    return subject, html, plain
+
+
+def _application_rejected(payload: dict) -> tuple[str, str, str]:
+    """Polite rejection email sent to the candidate."""
+    first_name = payload.get("candidate_first_name", "") or payload.get("first_name", "")
+    job_title  = payload.get("job_title", "the position")
+
+    subject = f"Your Application — {job_title}"
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
+      <div style="border-top:2px solid #1F4E79;padding-top:24px;margin-bottom:32px;">
+        <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC.</h1>
+      </div>
+      <h2 style="font-size:20px;margin:0 0 8px;">Thank You for Applying</h2>
+      <p style="color:#555555;margin-bottom:24px;">
+        Dear {first_name},<br/><br/>
+        Thank you for taking the time to apply for the <strong>{job_title}</strong> position
+        at GPR Surveys Inc. We appreciate your interest in our company.
+      </p>
+      <p style="color:#555555;margin-bottom:24px;">
+        After careful consideration, we have decided to move forward with other candidates
+        whose experience more closely matches our current needs. This was a competitive process
+        and we encourage you to apply for future openings that align with your background.
+      </p>
+      <p style="color:#555555;margin-bottom:24px;">
+        We wish you the best in your job search and career endeavours.
+      </p>
+      <p style="color:#555555;font-size:13px;border-top:1px solid #dddddd;padding-top:20px;margin-top:32px;">
+        GPR Surveys Inc.<br/>
+        <a href="mailto:info@gprsurveys.ca" style="color:#1F4E79;">info@gprsurveys.ca</a>
+      </p>
+    </div>
+    """
+    plain = (
+        f"Dear {first_name},\n\n"
+        f"Thank you for applying for the {job_title} position at GPR Surveys Inc. "
+        f"We appreciate your interest in our company.\n\n"
+        f"After careful consideration, we have decided to move forward with other candidates "
+        f"whose experience more closely matches our current needs. "
+        f"We encourage you to apply for future openings that align with your background.\n\n"
+        f"We wish you the best in your job search and career endeavours.\n\n"
+        f"GPR Surveys Inc.\ninfo@gprsurveys.ca"
+    )
+    return subject, html, plain
+
+
 TEMPLATES = {
     "booking_received":         _booking_received,
     "customer_confirmation":    _customer_confirmation,
@@ -1049,6 +1302,10 @@ TEMPLATES = {
     "time_off_request":         _time_off_request,
     "time_off_approval":        _time_off_approval,
     "billing_notification":     _billing_notification,
+    "new_application":          _new_application,
+    "application_received":     _application_received,
+    "interview_scheduled":      _interview_scheduled,
+    "application_rejected":     _application_rejected,
 }
 
 # Templates that receive the full payload (not just booking) because they need extra state
@@ -1061,7 +1318,10 @@ _RECORD_TEMPLATES = {"contact_notification"}
 _CONTACT_TEMPLATES = {"quote_email", "quote_followup"}
 
 # Internal contact-related templates (no booking, no contact recipient)
-_INTERNAL_CONTACT_TEMPLATES = {"stale_contacts_alert", "time_off_request", "billing_notification"}
+_INTERNAL_CONTACT_TEMPLATES = {"stale_contacts_alert", "time_off_request", "billing_notification", "new_application"}
+
+# Recruiting candidate-facing templates (send to payload["email"] or payload["candidate_email"])
+_RECRUITING_CANDIDATE_TEMPLATES = {"application_received", "interview_scheduled", "application_rejected"}
 
 # Templates that receive the full payload and send to payload["email"] or payload["tech_email"]
 _DIRECT_PAYLOAD_TEMPLATES = {"technician_credentials"}
@@ -1091,7 +1351,7 @@ def run(payload: dict) -> dict:
         return {"tech_email_skipped": True}
 
     # Require booking for booking templates only
-    if template not in _RECORD_TEMPLATES and template not in _CONTACT_TEMPLATES and template not in _INTERNAL_CONTACT_TEMPLATES and template not in _DIRECT_PAYLOAD_TEMPLATES and template not in _TECH_NOTIFICATION_TEMPLATES and not booking:
+    if template not in _RECORD_TEMPLATES and template not in _CONTACT_TEMPLATES and template not in _INTERNAL_CONTACT_TEMPLATES and template not in _DIRECT_PAYLOAD_TEMPLATES and template not in _TECH_NOTIFICATION_TEMPLATES and template not in _RECRUITING_CANDIDATE_TEMPLATES and not booking:
         raise ValueError("send_email: booking required")
 
     service = _get_service()
@@ -1122,7 +1382,10 @@ def run(payload: dict) -> dict:
         contacts = payload.get("contacts", [])
         subject, html, plain = TEMPLATES[template](contacts)
 
-    elif template in ("time_off_request", "time_off_approval", "billing_notification"):
+    elif template in ("time_off_request", "time_off_approval", "billing_notification", "new_application"):
+        subject, html, plain = TEMPLATES[template](payload)
+
+    elif template in _RECRUITING_CANDIDATE_TEMPLATES:
         subject, html, plain = TEMPLATES[template](payload)
 
     elif template in _DIRECT_PAYLOAD_TEMPLATES:
@@ -1136,11 +1399,14 @@ def run(payload: dict) -> dict:
         "internal_notification", "internal_modification",
         "internal_cancellation", "contact_notification",
         "stale_contacts_alert", "time_off_request", "billing_notification",
+        "new_application",
     )
     if template in _TECH_NOTIFICATION_TEMPLATES:
         to = payload.get("tech_email", "")
     elif template in _DIRECT_PAYLOAD_TEMPLATES:
         to = payload.get("email", "")
+    elif template in _RECRUITING_CANDIDATE_TEMPLATES:
+        to = payload.get("candidate_email", "") or payload.get("email", "")
     elif template in _internal_templates:
         to = settings.gmail_internal_recipient
     elif template in _CONTACT_TEMPLATES:

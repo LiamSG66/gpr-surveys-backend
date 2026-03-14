@@ -188,6 +188,18 @@ async def webhook_dispatcher(request: Request) -> dict:
             logger.error(f"[webhook_dispatcher/new_contact] {e}")
             return {"status": "error", "message": str(e)}
 
+    # ── job_applications INSERT ───────────────────────────────────────────────
+    if table == "job_applications" and event_type == "INSERT":
+        application_id = record.get("id")
+        if not application_id:
+            return {"error": "No application id in payload"}
+        try:
+            run_workflow("new_application", {"application_id": application_id})
+            return {"status": "ok", "workflow": "new_application", "application_id": application_id}
+        except Exception as e:
+            logger.error(f"[webhook_dispatcher/new_application] {e}")
+            return {"status": "error", "message": str(e)}
+
     # ── Unrecognised event ────────────────────────────────────────────────────
     logger.warning(f"[webhook_dispatcher] No handler for table={table!r} type={event_type!r}")
     return {"status": "skipped", "reason": f"no handler for {table}/{event_type}"}
@@ -441,6 +453,48 @@ async def send_time_off_request_endpoint(request: Request) -> dict:
         raise
     except Exception as e:
         logger.error(f"[send_time_off_request_endpoint] {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── HTTP: Schedule Interview ─────────────────────────────────────────────────
+
+@app.function(image=gpr_image, secrets=[gpr_secrets, gpr_service_account], scaledown_window=60)
+@modal.fastapi_endpoint(method="POST")
+async def schedule_interview_endpoint(request: Request) -> dict:
+    """Create a Google Calendar interview event and email the candidate confirmation."""
+    headers = dict(request.headers)
+    if not _verify_webhook_secret(headers):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    payload = await request.json()
+
+    application_id   = payload.get("application_id")
+    interview_slot_id = payload.get("interview_slot_id")
+    scheduled_at     = payload.get("scheduled_at")
+
+    if not application_id:
+        raise HTTPException(status_code=400, detail="application_id is required")
+    if not interview_slot_id:
+        raise HTTPException(status_code=400, detail="interview_slot_id is required")
+    if not scheduled_at:
+        raise HTTPException(status_code=400, detail="scheduled_at is required")
+
+    try:
+        result = run_workflow("schedule_interview", {
+            "application_id":    application_id,
+            "interview_slot_id": interview_slot_id,
+            "scheduled_at":      scheduled_at,
+            "duration_minutes":  payload.get("duration_minutes", 60),
+            "location_or_link":  payload.get("location_or_link", ""),
+            "notes":             payload.get("notes", ""),
+        })
+        return {
+            "status":             "ok",
+            "calendar_event_id":  result.get("calendar_event_id"),
+            "calendar_event_link": result.get("calendar_event_link"),
+        }
+    except Exception as e:
+        logger.error(f"[schedule_interview_endpoint] {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
