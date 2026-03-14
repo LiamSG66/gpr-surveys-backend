@@ -444,7 +444,7 @@ async def send_time_off_request_endpoint(request: Request) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── Cron: 48-hour Reminders ──────────────────────────────────────────────────
+# ─── Cron: Daily Emails (reminders + review requests) ─────────────────────────
 
 @app.function(
     image=gpr_image,
@@ -452,13 +452,16 @@ async def send_time_off_request_endpoint(request: Request) -> dict:
     schedule=modal.Period(hours=24),
 )
 def send_reminders():
-    """Runs daily — fetches bookings 48h out and sends reminder emails."""
+    """Runs daily — sends 48h booking reminders and pending Google Review request emails."""
+    from config import settings
+    from supabase import create_client
+    from datetime import datetime, timezone
     import tools.fetch_pending_reminders as fetcher
     import tools.send_email as emailer
 
-    result = fetcher.run({})
+    # ── Booking reminders ──────────────────────────────────────────────────────
+    result   = fetcher.run({})
     bookings = result.get("bookings", [])
-
     logger.info(f"[send_reminders] Found {len(bookings)} bookings to remind")
 
     for booking in bookings:
@@ -467,6 +470,31 @@ def send_reminders():
             logger.info(f"[send_reminders] Reminder sent for {booking.get('job_number')}")
         except Exception as e:
             logger.error(f"[send_reminders] Failed for {booking.get('job_number')}: {e}")
+
+    # ── Google Review request emails ───────────────────────────────────────────
+    supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+    now      = datetime.now(timezone.utc)
+
+    review_result = supabase.table("bookings") \
+        .select("*, customers(*)") \
+        .lte("review_email_scheduled_at", now.isoformat()) \
+        .eq("review_email_sent", False) \
+        .not_.is_("review_email_scheduled_at", "null") \
+        .execute()
+
+    review_bookings = review_result.data or []
+    logger.info(f"[send_reminders] Found {len(review_bookings)} review emails to send")
+
+    for booking in review_bookings:
+        try:
+            emailer.run({"booking": booking, "template": "google_review_request"})
+            supabase.table("bookings") \
+                .update({"review_email_sent": True}) \
+                .eq("id", booking["id"]) \
+                .execute()
+            logger.info(f"[send_reminders] Review email sent for {booking.get('job_number')}")
+        except Exception as e:
+            logger.error(f"[send_reminders] Failed review email for {booking.get('job_number')}: {e}")
 
 
 # ─── Cron: Stale Contact Alert ────────────────────────────────────────────────
@@ -571,40 +599,3 @@ def followup_stale_quotes():
             logger.error(f"[followup_stale_quotes] Failed for {contact.get('quote_number')}: {e}")
 
 
-# ─── Cron: Google Review Requests ─────────────────────────────────────────────
-
-@app.function(
-    image=gpr_image,
-    secrets=[gpr_secrets, gpr_service_account],
-    schedule=modal.Period(hours=24),
-)
-def send_review_requests():
-    """Runs daily — sends Google Review request emails to customers whose review_email_scheduled_at has passed."""
-    from config import settings
-    from supabase import create_client
-    import tools.send_email as emailer
-    from datetime import datetime, timezone
-
-    supabase = create_client(settings.supabase_url, settings.supabase_service_key)
-    now      = datetime.now(timezone.utc)
-
-    result = supabase.table("bookings") \
-        .select("*, customers(*)") \
-        .lte("review_email_scheduled_at", now.isoformat()) \
-        .eq("review_email_sent", False) \
-        .not_.is_("review_email_scheduled_at", "null") \
-        .execute()
-
-    bookings = result.data or []
-    logger.info(f"[send_review_requests] Found {len(bookings)} review emails to send")
-
-    for booking in bookings:
-        try:
-            emailer.run({"booking": booking, "template": "google_review_request"})
-            supabase.table("bookings") \
-                .update({"review_email_sent": True}) \
-                .eq("id", booking["id"]) \
-                .execute()
-            logger.info(f"[send_review_requests] Review email sent for {booking.get('job_number')}")
-        except Exception as e:
-            logger.error(f"[send_review_requests] Failed for {booking.get('job_number')}: {e}")
