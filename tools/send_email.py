@@ -488,11 +488,20 @@ def _contact_notification(record: dict) -> tuple[str, str, str]:
     return subject, html, plain
 
 
-def _quote_email(contact: dict, quote_number: str) -> tuple[str, str, str]:
+_QUOTE_SERVICE_LABELS = {
+    "locate_single":  "subsurface utility locating services",
+    "dual_services":  "subsurface utility locating and deliverable services",
+    "full_services":  "subsurface utility locating, topographic survey, and deliverable services",
+    "survey_single":  "topographic surveying services",
+}
+
+
+def _quote_email(contact: dict, quote_number: str, template_type: str = "locate_single") -> tuple[str, str, str]:
     first_name  = contact.get("first_name", "")
     site_city   = contact.get("site_city", "")
     address     = contact.get("site_address_line1", "")
     location    = f"{address}, {site_city}" if site_city else address
+    service_label = _QUOTE_SERVICE_LABELS.get(template_type, "subsurface investigation services")
 
     subject = f"Proposal {quote_number} — GPR Surveys Inc."
     html = f"""
@@ -507,16 +516,15 @@ def _quote_email(contact: dict, quote_number: str) -> tuple[str, str, str]:
         <strong>{quote_number}</strong> for the work at <strong>{location}</strong>.
       </p>
       <p style="color:#555555;margin-bottom:24px;">
-        This proposal outlines the scope of work, pricing, and terms for the requested subsurface
-        investigation services. Please review the attached document and do not hesitate to contact
-        us with any questions.
+        This proposal outlines the scope of work, pricing, and terms for the requested {service_label}.
+        Please review the attached document and do not hesitate to contact us with any questions.
       </p>
       <p style="color:#555555;margin-bottom:24px;">
         To authorize this proposal, please sign and return the Client Authorization page (Page 5)
         along with a purchase order number.
       </p>
       <p style="color:#555555;margin-bottom:24px;">
-        To help us process your invoice quickly, please confirm your billing details:<br/>
+        To help us process your invoice, please confirm your billing details:<br/>
         <a href="https://gprsurveys.ca/billing" style="color:#1F4E79;font-weight:600;">Update Billing Info →</a>
       </p>
       <p style="color:#555555;font-size:13px;border-top:1px solid #dddddd;padding-top:20px;margin-top:32px;">
@@ -530,7 +538,7 @@ def _quote_email(contact: dict, quote_number: str) -> tuple[str, str, str]:
         f"Dear {first_name},\n\n"
         f"Please find attached our proposal {quote_number} for work at {location}.\n\n"
         f"Please review and return the signed authorization page along with a PO number.\n\n"
-        f"To help us process your invoice quickly, please confirm your billing details:\n"
+        f"To help us process your invoice, please confirm your billing details:\n"
         f"https://gprsurveys.ca/billing\n\n"
         f"Louis Gosselin — Managing Partner\nGPR Surveys Inc.\nLG@gprsurveys.ca | (250) 896-7576"
     )
@@ -1099,9 +1107,10 @@ def run(payload: dict) -> dict:
         subject, html, plain = TEMPLATES[template](payload.get("record", {}))
 
     elif template == "quote_email":
-        contact      = payload.get("contact", {})
-        quote_number = contact.get("quote_number") or payload.get("quote_number", "Q00001")
-        subject, html, plain = TEMPLATES[template](contact, quote_number)
+        contact       = payload.get("contact", {})
+        quote_number  = contact.get("quote_number") or payload.get("quote_number", "Q00001")
+        template_type = payload.get("template_type") or payload.get("quote_data", {}).get("template_type", "locate_single")
+        subject, html, plain = TEMPLATES[template](contact, quote_number, template_type)
 
     elif template == "quote_followup":
         contact      = payload.get("contact", {})

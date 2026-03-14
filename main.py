@@ -275,12 +275,21 @@ async def field_report_endpoint(request: Request) -> dict:
                 logger.error(f"[field_report_endpoint] QB invoice failed: {e}")
                 # Don't fail — Drive upload already succeeded
 
-        # Step 5 — Google Review email
+        # Step 5 — Schedule Google Review email (sent by cron 24h later)
         if review_email:
             try:
-                emailer.run({"booking": booking, "template": "google_review_request"})
+                from config import settings
+                from supabase import create_client
+                from datetime import datetime, timezone, timedelta
+                supabase_client = create_client(settings.supabase_url, settings.supabase_service_key)
+                scheduled_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+                supabase_client.table("bookings") \
+                    .update({"review_email_scheduled_at": scheduled_at, "review_email_sent": False}) \
+                    .eq("id", booking["id"]) \
+                    .execute()
+                logger.info(f"[field_report_endpoint] Review email scheduled for {scheduled_at}")
             except Exception as e:
-                logger.error(f"[field_report_endpoint] Review email failed: {e}")
+                logger.error(f"[field_report_endpoint] Failed to schedule review email: {e}")
 
         return {
             "drive_file_id":  drive_file_id,
@@ -468,14 +477,14 @@ def send_reminders():
     schedule=modal.Period(hours=24),
 )
 def alert_stale_contacts():
-    """Runs daily — emails admin if any contacts have been in 'new' status for 48h+."""
+    """Runs daily — emails admin if any contacts have been in 'new' status for 24h+ (no quote sent)."""
     from config import settings
     from supabase import create_client
     import tools.send_email as emailer
     from datetime import datetime, timezone, timedelta
 
     supabase = create_client(settings.supabase_url, settings.supabase_service_key)
-    cutoff   = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    cutoff   = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
     result = supabase.table("contact_submissions") \
         .select("id, first_name, last_name, company, email, service, created_at") \
@@ -560,3 +569,42 @@ def followup_stale_quotes():
             logger.info(f"[followup_stale_quotes] Follow-up sent for {contact.get('quote_number')}")
         except Exception as e:
             logger.error(f"[followup_stale_quotes] Failed for {contact.get('quote_number')}: {e}")
+
+
+# ─── Cron: Google Review Requests ─────────────────────────────────────────────
+
+@app.function(
+    image=gpr_image,
+    secrets=[gpr_secrets, gpr_service_account],
+    schedule=modal.Period(hours=24),
+)
+def send_review_requests():
+    """Runs daily — sends Google Review request emails to customers whose review_email_scheduled_at has passed."""
+    from config import settings
+    from supabase import create_client
+    import tools.send_email as emailer
+    from datetime import datetime, timezone
+
+    supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+    now      = datetime.now(timezone.utc)
+
+    result = supabase.table("bookings") \
+        .select("*, customers(*)") \
+        .lte("review_email_scheduled_at", now.isoformat()) \
+        .eq("review_email_sent", False) \
+        .not_.is_("review_email_scheduled_at", "null") \
+        .execute()
+
+    bookings = result.data or []
+    logger.info(f"[send_review_requests] Found {len(bookings)} review emails to send")
+
+    for booking in bookings:
+        try:
+            emailer.run({"booking": booking, "template": "google_review_request"})
+            supabase.table("bookings") \
+                .update({"review_email_sent": True}) \
+                .eq("id", booking["id"]) \
+                .execute()
+            logger.info(f"[send_review_requests] Review email sent for {booking.get('job_number')}")
+        except Exception as e:
+            logger.error(f"[send_review_requests] Failed for {booking.get('job_number')}: {e}")
