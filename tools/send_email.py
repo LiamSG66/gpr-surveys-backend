@@ -267,16 +267,16 @@ def _booking_reminder(booking: dict) -> tuple[str, str, str]:
     h_first_name = _esc(first_name)
     h_job        = _esc(job)
 
-    subject = f"Reminder: Your GPR Survey is Tomorrow — {job}"
+    subject = f"Reminder: Your GPR Survey — {job}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;background:#0a0a0a;color:#fff;padding:40px;">
       <h2>Survey Reminder</h2>
-      <p>Hi {h_first_name}, this is a reminder that your GPR survey is scheduled for tomorrow.</p>
+      <p>Hi {h_first_name}, this is a reminder that your GPR survey is scheduled for:</p>
       <p><strong>Job:</strong> {h_job}<br><strong>Date:</strong> {date} at {time}</p>
       <p style="color:#94a3b8;font-size:12px;">Questions? Reply to this email or call 1-800-555-0199.</p>
     </div>
     """
-    plain = f"Reminder: GPR Survey {job} is tomorrow, {date} at {time}."
+    plain = f"Reminder: GPR Survey {job} is scheduled for {date} at {time}."
     return subject, html, plain
 
 
