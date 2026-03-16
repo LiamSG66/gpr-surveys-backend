@@ -86,10 +86,15 @@ def _get_qb_client() -> QuickBooks:
 
 # ─── Customer helpers ─────────────────────────────────────────────────────────
 
+def _escape_qb_value(val: str) -> str:
+    """Escape single quotes for QuickBooks query language."""
+    return val.replace("\\", "\\\\").replace("'", "\\'")
+
+
 def _find_customer(qb: QuickBooks, display_name: str, email: str) -> Customer | None:
     """Look up customer by DisplayName first (QBO enforces uniqueness on it), then by email."""
     try:
-        safe_name = display_name.replace("'", "\\'")
+        safe_name = _escape_qb_value(display_name)
         results = Customer.query(
             f"SELECT * FROM Customer WHERE DisplayName = '{safe_name}'",
             qb=qb,
@@ -99,8 +104,9 @@ def _find_customer(qb: QuickBooks, display_name: str, email: str) -> Customer | 
     except Exception:
         pass
     try:
+        safe_email = _escape_qb_value(email)
         results = Customer.query(
-            f"SELECT * FROM Customer WHERE PrimaryEmailAddr = '{email}'",
+            f"SELECT * FROM Customer WHERE PrimaryEmailAddr = '{safe_email}'",
             qb=qb,
         )
         if results:

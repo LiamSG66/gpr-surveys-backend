@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import time
+from html import escape as _esc
 import jwt
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,11 @@ def _customer_confirmation(booking: dict) -> tuple[str, str, str]:
     modify_token = _generate_modify_token(job, customer_email) if job and customer_email else ""
     modify_url = f"https://gprsurveys.ca/modify?token={modify_token}" if modify_token else "https://gprsurveys.ca/modify"
 
+    h_first_name = _esc(first_name)
+    h_job        = _esc(job)
+    h_service    = _esc(service)
+    h_city       = _esc(city)
+
     subject = f"Booking Confirmed — {job} | GPR Surveys"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
@@ -107,13 +113,13 @@ def _customer_confirmation(booking: dict) -> tuple[str, str, str]:
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
       </div>
       <h2 style="font-size:22px;margin:0 0 8px;">Booking Confirmed</h2>
-      <p style="color:#94a3b8;margin-bottom:32px;">Hi {first_name}, your GPR survey has been confirmed.</p>
+      <p style="color:#94a3b8;margin-bottom:32px;">Hi {h_first_name}, your GPR survey has been confirmed.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{job}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{h_job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{h_service}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{date}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{booking_time}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{city}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{h_city}</td></tr>
       </table>
       <p style="margin-bottom:8px;">
         <a href="{modify_url}" style="display:inline-block;background:#FFD700;color:#0a0a0a;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
@@ -143,6 +149,11 @@ def _booking_received(booking: dict) -> tuple[str, str, str]:
     modify_token = _generate_modify_token(job, customer_email) if job and customer_email else ""
     modify_url = f"https://gprsurveys.ca/modify?token={modify_token}" if modify_token else "https://gprsurveys.ca/modify"
 
+    h_first_name = _esc(first_name)
+    h_job        = _esc(job)
+    h_service    = _esc(service)
+    h_city       = _esc(city)
+
     subject = f"Booking Request Received — {job} | GPR Surveys"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
@@ -150,13 +161,13 @@ def _booking_received(booking: dict) -> tuple[str, str, str]:
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
       </div>
       <h2 style="font-size:22px;margin:0 0 8px;">We've Received Your Request</h2>
-      <p style="color:#94a3b8;margin-bottom:32px;">Hi {first_name}, thank you for booking with GPR Surveys. Our team is reviewing your job request now — we'll send you a confirmation email once it's been confirmed.</p>
+      <p style="color:#94a3b8;margin-bottom:32px;">Hi {h_first_name}, thank you for booking with GPR Surveys. Our team is reviewing your job request now — we'll send you a confirmation email once it's been confirmed.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{job}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{h_job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{h_service}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Requested Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{date}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{booking_time}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{city}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{h_city}</td></tr>
       </table>
       <p style="margin-bottom:8px;">
         <a href="{modify_url}" style="display:inline-block;background:#FFD700;color:#0a0a0a;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
@@ -188,16 +199,25 @@ def _internal_notification(booking: dict) -> tuple[str, str, str]:
     customer_name = f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
     portal_url = f"https://gprsurveys.ca/admin/job/{job}" if job else "https://gprsurveys.ca/admin/jobs"
 
+    h_job           = _esc(job)
+    h_service       = _esc(service)
+    h_address       = _esc(address)
+    h_customer_name = _esc(customer_name)
+    h_customer_email = _esc(customer.get("email", ""))
+    h_site_contact  = _esc(f"{booking.get('site_contact_first_name', '')} {booking.get('site_contact_last_name', '')}".strip())
+    h_site_phone    = _esc(booking.get("site_contact_phone", ""))
+    h_notes         = _esc(booking.get("notes", "") or "—")
+
     subject = f"[NEW BOOKING] {job} — {service} — {booking.get('site_city', '')}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;">
-      <h2>[NEW BOOKING] {job}</h2>
-      <p><strong>Service:</strong> {service}<br>
+      <h2>[NEW BOOKING] {h_job}</h2>
+      <p><strong>Service:</strong> {h_service}<br>
       <strong>Date:</strong> {date} at {time}<br>
-      <strong>Site:</strong> {address}<br>
-      <strong>Customer:</strong> {customer_name} — {customer.get('email', '')}<br>
-      <strong>Site Contact:</strong> {booking.get('site_contact_first_name', '')} {booking.get('site_contact_last_name', '')} {booking.get('site_contact_phone', '')}</p>
-      <p><strong>Notes:</strong> {booking.get('notes', '—')}</p>
+      <strong>Site:</strong> {h_address}<br>
+      <strong>Customer:</strong> {h_customer_name} — {h_customer_email}<br>
+      <strong>Site Contact:</strong> {h_site_contact} {h_site_phone}</p>
+      <p><strong>Notes:</strong> {h_notes}</p>
       <p style="margin-top:16px;">
         <a href="{portal_url}" style="display:inline-block;background:#111;color:#FFD700;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:10px 20px;border:1px solid #FFD700;">
           View in Admin Portal →
@@ -216,12 +236,15 @@ def _booking_reminder(booking: dict) -> tuple[str, str, str]:
     customer = booking.get("customers") or {}
     first_name = customer.get("first_name", "")
 
+    h_first_name = _esc(first_name)
+    h_job        = _esc(job)
+
     subject = f"Reminder: Your GPR Survey is Tomorrow — {job}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;background:#0a0a0a;color:#fff;padding:40px;">
       <h2>Survey Reminder</h2>
-      <p>Hi {first_name}, this is a reminder that your GPR survey is scheduled for tomorrow.</p>
-      <p><strong>Job:</strong> {job}<br><strong>Date:</strong> {date} at {time}</p>
+      <p>Hi {h_first_name}, this is a reminder that your GPR survey is scheduled for tomorrow.</p>
+      <p><strong>Job:</strong> {h_job}<br><strong>Date:</strong> {date} at {time}</p>
       <p style="color:#94a3b8;font-size:12px;">Questions? Reply to this email or call 1-800-555-0199.</p>
     </div>
     """
@@ -248,6 +271,15 @@ def _customer_modification(payload: dict) -> tuple[str, str, str]:
     modify_token = _generate_modify_token(job, customer_email) if job and customer_email else ""
     modify_url = f"https://gprsurveys.ca/modify?token={modify_token}" if modify_token else "https://gprsurveys.ca/modify"
 
+    h_first_name = _esc(first_name)
+    h_job        = _esc(job)
+    h_service    = _esc(service)
+    h_city       = _esc(city)
+    h_old_date   = _esc(old_date)
+    h_old_time   = _esc(old_time)
+    h_new_date   = _esc(new_date)
+    h_new_time   = _esc(new_time)
+
     subject = f"Booking Rescheduled — {job} | GPR Surveys"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
@@ -255,7 +287,7 @@ def _customer_modification(payload: dict) -> tuple[str, str, str]:
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
       </div>
       <h2 style="font-size:22px;margin:0 0 8px;">Your Booking Has Been Rescheduled</h2>
-      <p style="color:#94a3b8;margin-bottom:32px;">Hi {first_name}, your booking ({job}) has been rescheduled. Please note the updated date and time below.</p>
+      <p style="color:#94a3b8;margin-bottom:32px;">Hi {h_first_name}, your booking ({h_job}) has been rescheduled. Please note the updated date and time below.</p>
       <div style="background:#111111;border:1px solid #2a2a2a;border-radius:4px;padding:20px 24px;margin-bottom:32px;">
         <p style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#FFD700;opacity:0.7;margin:0 0 16px;">UPDATED SCHEDULE</p>
         <table style="width:100%;border-collapse:collapse;">
@@ -266,20 +298,20 @@ def _customer_modification(payload: dict) -> tuple[str, str, str]:
           </tr>
           <tr>
             <td style="padding:12px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Date</td>
-            <td style="padding:12px 0;font-size:13px;color:#555555;text-decoration:line-through;border-bottom:1px solid #1e1e1e;">{old_date}</td>
-            <td style="padding:12px 0;font-size:15px;font-weight:700;border-bottom:1px solid #1e1e1e;">{new_date}</td>
+            <td style="padding:12px 0;font-size:13px;color:#555555;text-decoration:line-through;border-bottom:1px solid #1e1e1e;">{h_old_date}</td>
+            <td style="padding:12px 0;font-size:15px;font-weight:700;border-bottom:1px solid #1e1e1e;">{h_new_date}</td>
           </tr>
           <tr>
             <td style="padding:12px 0;color:#94a3b8;font-size:13px;">Time</td>
-            <td style="padding:12px 0;font-size:13px;color:#555555;text-decoration:line-through;">{old_time}</td>
-            <td style="padding:12px 0;font-size:15px;font-weight:700;">{new_time}</td>
+            <td style="padding:12px 0;font-size:13px;color:#555555;text-decoration:line-through;">{h_old_time}</td>
+            <td style="padding:12px 0;font-size:15px;font-weight:700;">{h_new_time}</td>
           </tr>
         </table>
       </div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{job}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{service}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{city}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{h_job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{h_service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{h_city}</td></tr>
       </table>
       <p style="margin-bottom:8px;">
         <a href="{modify_url}" style="display:inline-block;background:#FFD700;color:#0a0a0a;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
@@ -317,14 +349,27 @@ def _internal_modification(payload: dict) -> tuple[str, str, str]:
     old_date = _fmt_date(old_date_raw) if old_date_raw else "—"
     old_time = old_time_raw[:5] if old_time_raw else "—"
 
+    h_job           = _esc(job)
+    h_service       = _esc(service)
+    h_address       = _esc(address)
+    h_customer_name = _esc(customer_name)
+    h_customer_email = _esc(customer.get("email", ""))
+    h_site_contact  = _esc(f"{booking.get('site_contact_first_name', '')} {booking.get('site_contact_last_name', '')}".strip())
+    h_site_phone    = _esc(booking.get("site_contact_phone", ""))
+    h_old_date      = _esc(old_date)
+    h_old_time      = _esc(old_time)
+    h_new_date      = _esc(new_date)
+    h_new_time      = _esc(new_time)
+    h_notes         = _esc(booking.get("notes", "") or "—")
+
     subject = f"[UPDATED BOOKING] {job} — {service} — {booking.get('site_city', '')}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;">
-      <h2>[UPDATED BOOKING] {job}</h2>
-      <p><strong>Service:</strong> {service}<br>
-      <strong>Site:</strong> {address}<br>
-      <strong>Customer:</strong> {customer_name} — {customer.get('email', '')}<br>
-      <strong>Site Contact:</strong> {booking.get('site_contact_first_name', '')} {booking.get('site_contact_last_name', '')} {booking.get('site_contact_phone', '')}</p>
+      <h2>[UPDATED BOOKING] {h_job}</h2>
+      <p><strong>Service:</strong> {h_service}<br>
+      <strong>Site:</strong> {h_address}<br>
+      <strong>Customer:</strong> {h_customer_name} — {h_customer_email}<br>
+      <strong>Site Contact:</strong> {h_site_contact} {h_site_phone}</p>
       <table style="border-collapse:collapse;margin:16px 0;">
         <tr>
           <th style="text-align:left;padding:6px 16px 6px 0;color:#666;font-weight:normal;">Field</th>
@@ -333,16 +378,16 @@ def _internal_modification(payload: dict) -> tuple[str, str, str]:
         </tr>
         <tr>
           <td style="padding:6px 16px 6px 0;"><strong>Date</strong></td>
-          <td style="padding:6px 16px 6px 0;">{old_date}</td>
-          <td style="padding:6px 0;"><strong>{new_date}</strong></td>
+          <td style="padding:6px 16px 6px 0;">{h_old_date}</td>
+          <td style="padding:6px 0;"><strong>{h_new_date}</strong></td>
         </tr>
         <tr>
           <td style="padding:6px 16px 6px 0;"><strong>Time</strong></td>
-          <td style="padding:6px 16px 6px 0;">{old_time}</td>
-          <td style="padding:6px 0;"><strong>{new_time}</strong></td>
+          <td style="padding:6px 16px 6px 0;">{h_old_time}</td>
+          <td style="padding:6px 0;"><strong>{h_new_time}</strong></td>
         </tr>
       </table>
-      <p><strong>Notes:</strong> {booking.get('notes', '—')}</p>
+      <p><strong>Notes:</strong> {h_notes}</p>
     </div>
     """
     plain = (
@@ -367,17 +412,27 @@ def _internal_cancellation(booking: dict) -> tuple[str, str, str]:
     tech = booking.get("technicians") or {}
     tech_name = tech.get("name", "Unassigned")
 
+    h_job           = _esc(job)
+    h_service       = _esc(service)
+    h_address       = _esc(address)
+    h_customer_name = _esc(customer_name)
+    h_customer_email = _esc(customer.get("email", ""))
+    h_site_contact  = _esc(f"{booking.get('site_contact_first_name', '')} {booking.get('site_contact_last_name', '')}".strip())
+    h_site_phone    = _esc(booking.get("site_contact_phone", ""))
+    h_tech_name     = _esc(tech_name)
+    h_notes         = _esc(booking.get("notes", "") or "—")
+
     subject = f"[CANCELLED BOOKING] {job} — {service} — {booking.get('site_city', '')}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;">
-      <h2>[CANCELLED BOOKING] {job}</h2>
-      <p><strong>Service:</strong> {service}<br>
+      <h2>[CANCELLED BOOKING] {h_job}</h2>
+      <p><strong>Service:</strong> {h_service}<br>
       <strong>Date:</strong> {date} at {time_str}<br>
-      <strong>Site:</strong> {address}<br>
-      <strong>Customer:</strong> {customer_name} — {customer.get('email', '')}<br>
-      <strong>Site Contact:</strong> {booking.get('site_contact_first_name', '')} {booking.get('site_contact_last_name', '')} {booking.get('site_contact_phone', '')}<br>
-      <strong>Assigned Tech:</strong> {tech_name}</p>
-      <p><strong>Notes:</strong> {booking.get('notes', '—')}</p>
+      <strong>Site:</strong> {h_address}<br>
+      <strong>Customer:</strong> {h_customer_name} — {h_customer_email}<br>
+      <strong>Site Contact:</strong> {h_site_contact} {h_site_phone}<br>
+      <strong>Assigned Tech:</strong> {h_tech_name}</p>
+      <p><strong>Notes:</strong> {h_notes}</p>
     </div>
     """
     plain = (
@@ -398,6 +453,10 @@ def _customer_cancellation(booking: dict) -> tuple[str, str, str]:
     customer = booking.get("customers") or {}
     first_name = customer.get("first_name", "")
 
+    h_first_name = _esc(first_name)
+    h_job        = _esc(job)
+    h_service    = _esc(service)
+
     subject = f"Booking Cancelled — {job} | GPR Surveys"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
@@ -405,10 +464,10 @@ def _customer_cancellation(booking: dict) -> tuple[str, str, str]:
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
       </div>
       <h2 style="font-size:22px;margin:0 0 8px;">Booking Cancelled</h2>
-      <p style="color:#94a3b8;margin-bottom:32px;">Hi {first_name}, your booking has been cancelled.</p>
+      <p style="color:#94a3b8;margin-bottom:32px;">Hi {h_first_name}, your booking has been cancelled.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{job}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{h_job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{h_service}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Date</td><td style="padding:10px 0;font-size:13px;">{date}</td></tr>
       </table>
       <p style="color:#94a3b8;font-size:13px;">
@@ -445,7 +504,7 @@ def _contact_notification(record: dict) -> tuple[str, str, str]:
         return (
             f"<tr>"
             f"<td style='padding:8px 16px 8px 0;color:#666;font-size:13px;white-space:nowrap;vertical-align:top;'>{label}</td>"
-            f"<td style='padding:8px 0;font-size:13px;'>{value}</td>"
+            f"<td style='padding:8px 0;font-size:13px;'>{_esc(value)}</td>"
             f"</tr>"
         )
 
@@ -471,13 +530,16 @@ def _contact_notification(record: dict) -> tuple[str, str, str]:
         f"Quote Urgency: {urgency}" if urgency else "",
     ]))
 
+    h_name    = _esc(name)
+    h_message = _esc(message)
+
     subject = f"[NEW CONTACT] {name} — {service or 'gprsurveys.ca'}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;">
-      <h2 style="margin:0 0 4px;">[NEW CONTACT] {name}</h2>
+      <h2 style="margin:0 0 4px;">[NEW CONTACT] {h_name}</h2>
       <p style="color:#666;font-size:13px;margin:0 0 16px;">New contact form submission from gprsurveys.ca</p>
       <table style="border-collapse:collapse;margin-bottom:16px;">{rows_html}</table>
-      <p style="font-size:13px;"><strong>Message:</strong><br>{message}</p>
+      <p style="font-size:13px;"><strong>Message:</strong><br>{h_message}</p>
       <p style="margin-top:16px;">
         <a href="{portal_url}" style="display:inline-block;background:#111;color:#FFD700;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:10px 20px;border:1px solid #FFD700;">
           View in Admin Portal →
@@ -504,6 +566,10 @@ def _quote_email(contact: dict, quote_number: str, template_type: str = "locate_
     location    = f"{address}, {site_city}" if site_city else address
     service_label = _QUOTE_SERVICE_LABELS.get(template_type, "subsurface investigation services")
 
+    h_first_name  = _esc(first_name)
+    h_quote_number = _esc(quote_number)
+    h_location    = _esc(location)
+
     subject = f"Proposal {quote_number} — GPR Surveys Inc."
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
@@ -512,9 +578,9 @@ def _quote_email(contact: dict, quote_number: str, template_type: str = "locate_
       </div>
       <h2 style="font-size:20px;margin:0 0 8px;">Professional Services Proposal</h2>
       <p style="color:#555555;margin-bottom:24px;">
-        Dear {first_name},<br/><br/>
+        Dear {h_first_name},<br/><br/>
         Thank you for reaching out to GPR Surveys Inc. Please find attached our proposal
-        <strong>{quote_number}</strong> for the work at <strong>{location}</strong>.
+        <strong>{h_quote_number}</strong> for the work at <strong>{h_location}</strong>.
       </p>
       <p style="color:#555555;margin-bottom:24px;">
         This proposal outlines the scope of work, pricing, and terms for the requested {service_label}.
@@ -557,9 +623,9 @@ def _stale_contacts_alert(contacts: list) -> tuple[str, str, str]:
         service = c.get("service", "")
         created = c.get("created_at", "")[:10]
         rows += (
-            f"<tr><td style='padding:6px 12px;border-bottom:1px solid #eee;'>{name}</td>"
-            f"<td style='padding:6px 12px;border-bottom:1px solid #eee;'>{company}</td>"
-            f"<td style='padding:6px 12px;border-bottom:1px solid #eee;'>{service}</td>"
+            f"<tr><td style='padding:6px 12px;border-bottom:1px solid #eee;'>{_esc(name)}</td>"
+            f"<td style='padding:6px 12px;border-bottom:1px solid #eee;'>{_esc(company)}</td>"
+            f"<td style='padding:6px 12px;border-bottom:1px solid #eee;'>{_esc(service)}</td>"
             f"<td style='padding:6px 12px;border-bottom:1px solid #eee;'>{created}</td></tr>"
         )
         plain_rows += f"  • {name} ({company}) — {service} — received {created}\n"
@@ -601,6 +667,9 @@ def _google_review_request(booking: dict) -> tuple[str, str, str]:
     first_name = customer.get("first_name", "")
     review_url = os.environ.get("GOOGLE_REVIEW_URL", "https://gprsurveys.ca")
 
+    h_first_name = _esc(first_name)
+    h_job        = _esc(job)
+
     subject = "How did we do? — GPR Surveys Inc."
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
@@ -609,8 +678,8 @@ def _google_review_request(booking: dict) -> tuple[str, str, str]:
       </div>
       <h2 style="font-size:20px;margin:0 0 8px;">Thank You for Choosing GPR Surveys</h2>
       <p style="color:#555555;margin-bottom:24px;">
-        Hi {first_name},<br/><br/>
-        Thank you for working with us on job <strong>{job}</strong>. We hope the survey met your expectations
+        Hi {h_first_name},<br/><br/>
+        Thank you for working with us on job <strong>{h_job}</strong>. We hope the survey met your expectations
         and helped support your project safely and efficiently.
       </p>
       <p style="color:#555555;margin-bottom:24px;">
@@ -644,17 +713,20 @@ def _technician_credentials(payload: dict) -> tuple[str, str, str]:
     temp_password = payload.get("temp_password", "")
     login_url    = os.environ.get("SITE_URL", "https://gprsurveys.ca") + "/login"
 
+    h_name  = _esc(name)
+    h_email = _esc(email)
+
     subject = "Your GPR Surveys Portal Access"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
       <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
       </div>
-      <h2 style="font-size:22px;margin:0 0 8px;">Welcome, {name}</h2>
+      <h2 style="font-size:22px;margin:0 0 8px;">Welcome, {h_name}</h2>
       <p style="color:#94a3b8;margin-bottom:32px;">Your admin portal account has been created. Use the credentials below to log in.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Login URL</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;"><a href="{login_url}" style="color:#FFD700;">{login_url}</a></td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Email</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{email}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Email</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{h_email}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Temp Password</td><td style="padding:10px 0;font-size:13px;font-weight:600;">{temp_password}</td></tr>
       </table>
       <p style="color:#94a3b8;font-size:13px;">
@@ -695,23 +767,33 @@ def _technician_assignment(payload: dict) -> tuple[str, str, str]:
     site_phone   = booking.get("site_contact_phone", "")
     notes        = booking.get("notes", "") or "—"
 
+    h_tech_name   = _esc(tech_name)
+    h_job         = _esc(job)
+    h_service     = _esc(service)
+    h_address     = _esc(address)
+    h_cust_name   = _esc(cust_name)
+    h_cust_phone  = _esc(cust_phone)
+    h_site_contact = _esc(site_contact)
+    h_site_phone  = _esc(site_phone)
+    h_notes       = _esc(notes)
+
     subject = f"[JOB ASSIGNED] {job} — {service}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
       <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
       </div>
-      <h2 style="font-size:20px;margin:0 0 8px;">Job Assigned — {job}</h2>
-      <p style="color:#94a3b8;margin-bottom:28px;">Hi {tech_name}, you have been assigned to the following job.</p>
+      <h2 style="font-size:20px;margin:0 0 8px;">Job Assigned — {h_job}</h2>
+      <p style="color:#94a3b8;margin-bottom:28px;">Hi {h_tech_name}, you have been assigned to the following job.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:28px;">
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;width:38%;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #1e1e1e;">{job}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;width:38%;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #1e1e1e;">{h_job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{h_service}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{date}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{booking_time}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Site Address</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{address}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Customer</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{cust_name}{(' — ' + cust_phone) if cust_phone else ''}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Site Contact</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{site_contact}{(' — ' + site_phone) if site_phone else ''}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Notes</td><td style="padding:10px 0;font-size:13px;">{notes}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Site Address</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{h_address}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Customer</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{h_cust_name}{(' — ' + h_cust_phone) if h_cust_phone else ''}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Site Contact</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{h_site_contact}{(' — ' + h_site_phone) if h_site_phone else ''}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Notes</td><td style="padding:10px 0;font-size:13px;">{h_notes}</td></tr>
       </table>
       <p style="margin-bottom:8px;">
         <a href="{portal_url}" style="display:inline-block;background:#FFD700;color:#0a0a0a;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
@@ -746,20 +828,25 @@ def _technician_unassignment(payload: dict) -> tuple[str, str, str]:
     time_s  = booking.get("booking_time", "")[:5]
     address = f"{booking.get('site_address_line1', '')} {booking.get('site_city', '')} {booking.get('site_province', '')}".strip()
 
+    h_tech_name = _esc(tech_name)
+    h_job       = _esc(job)
+    h_service   = _esc(service)
+    h_address   = _esc(address)
+
     subject = f"[JOB UNASSIGNED] {job} — {service}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
       <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS</h1>
       </div>
-      <h2 style="font-size:20px;margin:0 0 8px;">Job Unassigned — {job}</h2>
-      <p style="color:#94a3b8;margin-bottom:28px;">Hi {tech_name}, you have been removed from the following job.</p>
+      <h2 style="font-size:20px;margin:0 0 8px;">Job Unassigned — {h_job}</h2>
+      <p style="color:#94a3b8;margin-bottom:28px;">Hi {h_tech_name}, you have been removed from the following job.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:28px;">
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;width:38%;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #1e1e1e;">{job}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;width:38%;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #1e1e1e;">{h_job}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{h_service}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{date}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #1e1e1e;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #1e1e1e;">{time_s}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Site Address</td><td style="padding:10px 0;font-size:13px;">{address}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Site Address</td><td style="padding:10px 0;font-size:13px;">{h_address}</td></tr>
       </table>
       <p style="font-size:13px;color:#94a3b8;">If you believe this was an error, please contact info@gprsurveys.ca.</p>
     </div>
@@ -777,6 +864,10 @@ def _quote_followup(contact: dict, quote_number: str, days_ago: int) -> tuple[st
     first_name = contact.get("first_name", "")
     site_city  = contact.get("site_city", "")
 
+    h_first_name   = _esc(first_name)
+    h_quote_number = _esc(quote_number)
+    h_site_city    = _esc(site_city)
+
     subject = f"Following Up — Proposal {quote_number} | GPR Surveys Inc."
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
@@ -785,9 +876,9 @@ def _quote_followup(contact: dict, quote_number: str, days_ago: int) -> tuple[st
       </div>
       <h2 style="font-size:20px;margin:0 0 8px;">Following Up on Your Proposal</h2>
       <p style="color:#555555;margin-bottom:24px;">
-        Dear {first_name},<br/><br/>
-        I wanted to follow up on proposal <strong>{quote_number}</strong> that we sent {days_ago} days ago
-        for your project in {site_city}. We would love to help and are happy to answer any questions
+        Dear {h_first_name},<br/><br/>
+        I wanted to follow up on proposal <strong>{h_quote_number}</strong> that we sent {days_ago} days ago
+        for your project in {h_site_city}. We would love to help and are happy to answer any questions
         you may have about the scope, pricing, or process.
       </p>
       <p style="color:#555555;margin-bottom:24px;">
@@ -828,6 +919,10 @@ def _time_off_request(payload: dict) -> tuple[str, str, str]:
     formatted_dates = [_fmt(d) for d in sorted(dates)]
     submitted = datetime.now().strftime("%a, %b %-d, %Y")
 
+    h_tech_name  = _esc(tech_name)
+    h_tech_email = _esc(tech_email)
+    h_notes      = _esc(notes)
+
     subject = f"[TIME OFF REQUEST] {tech_name} \u2014 {date_count} day{'s' if date_count != 1 else ''}"
 
     date_rows = "".join(
@@ -836,7 +931,7 @@ def _time_off_request(payload: dict) -> tuple[str, str, str]:
     )
     notes_block = (
         f'<p style="margin:16px 0 0;"><strong>Notes:</strong></p>'
-        f'<p style="color:#555555;font-style:italic;">&ldquo;{notes}&rdquo;</p>'
+        f'<p style="color:#555555;font-style:italic;">&ldquo;{h_notes}&rdquo;</p>'
         if notes else ""
     )
 
@@ -847,8 +942,8 @@ def _time_off_request(payload: dict) -> tuple[str, str, str]:
       </div>
       <h2 style="font-size:20px;margin:0 0 8px;">Time Off Request</h2>
       <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-        <tr><td style="padding:4px 0;color:#888888;width:120px;">Technician</td><td style="padding:4px 0;font-weight:600;">{tech_name}</td></tr>
-        <tr><td style="padding:4px 0;color:#888888;">Email</td><td style="padding:4px 0;">{tech_email}</td></tr>
+        <tr><td style="padding:4px 0;color:#888888;width:120px;">Technician</td><td style="padding:4px 0;font-weight:600;">{h_tech_name}</td></tr>
+        <tr><td style="padding:4px 0;color:#888888;">Email</td><td style="padding:4px 0;">{h_tech_email}</td></tr>
         <tr><td style="padding:4px 0;color:#888888;">Submitted</td><td style="padding:4px 0;">{submitted}</td></tr>
       </table>
       <p style="margin:0 0 8px;font-weight:600;">Requested Days Off ({date_count}):</p>
@@ -890,6 +985,8 @@ def _time_off_approval(payload: dict) -> tuple[str, str, str]:
     date_count      = len(dates)
     formatted_dates = [_fmt(d) for d in sorted(dates)]
 
+    h_tech_name = _esc(tech_name)
+
     subject = f"[TIME OFF APPROVED] Your request has been approved — {date_count} day{'s' if date_count != 1 else ''}"
 
     date_rows = "".join(
@@ -903,7 +1000,7 @@ def _time_off_approval(payload: dict) -> tuple[str, str, str]:
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS — SCHEDULE UPDATE</h1>
       </div>
       <h2 style="font-size:22px;margin:0 0 8px;">Time Off Approved</h2>
-      <p style="color:#94a3b8;margin-bottom:32px;">Hi {tech_name}, your time-off request has been approved for the following {date_count} day{'s' if date_count != 1 else ''}:</p>
+      <p style="color:#94a3b8;margin-bottom:32px;">Hi {h_tech_name}, your time-off request has been approved for the following {date_count} day{'s' if date_count != 1 else ''}:</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
         {date_rows}
       </table>
@@ -931,20 +1028,26 @@ def _tech_date_change(payload: dict) -> tuple[str, str, str]:
     service     = booking.get("service", "")
     address     = f"{booking.get('site_address_line1', '')} {booking.get('site_city', '')} {booking.get('site_province', '')}".strip()
 
+    h_job_number = _esc(job_number)
+    h_service    = _esc(service)
+    h_old_date   = _esc(old_date)
+    h_new_date   = _esc(new_date)
+    h_address    = _esc(address)
+
     subject = f"[JOB MOVED] {job_number} rescheduled to {new_date}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#0a0a0a;color:#fff;padding:40px;">
       <div style="border-top:2px solid #FFD700;padding-top:24px;margin-bottom:32px;">
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD700;margin:0 0 4px;">GPR SURVEYS — TECH UPDATE</h1>
       </div>
-      <h2 style="font-size:22px;margin:0 0 8px;">[JOB MOVED] {job_number}</h2>
+      <h2 style="font-size:22px;margin:0 0 8px;">[JOB MOVED] {h_job_number}</h2>
       <p style="color:#94a3b8;margin-bottom:32px;">One of your assigned jobs has been rescheduled by the admin.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{job_number}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{service}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Old Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;text-decoration:line-through;color:#94a3b8;">{old_date}</td></tr>
-        <tr><td style="padding:10px 0;color:#FFD700;font-size:13px;font-weight:700;border-bottom:1px solid #2a2a2a;">New Date</td><td style="padding:10px 0;font-size:13px;font-weight:700;color:#FFD700;border-bottom:1px solid #2a2a2a;">{new_date}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Site</td><td style="padding:10px 0;font-size:13px;">{address}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{h_job_number}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{h_service}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Old Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;text-decoration:line-through;color:#94a3b8;">{h_old_date}</td></tr>
+        <tr><td style="padding:10px 0;color:#FFD700;font-size:13px;font-weight:700;border-bottom:1px solid #2a2a2a;">New Date</td><td style="padding:10px 0;font-size:13px;font-weight:700;color:#FFD700;border-bottom:1px solid #2a2a2a;">{h_new_date}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Site</td><td style="padding:10px 0;font-size:13px;">{h_address}</td></tr>
       </table>
       <p style="font-size:12px;color:#3a3a3a;border-top:1px solid #2a2a2a;padding-top:24px;">
         This is an automated notification. Please check the admin portal for full job details.
@@ -984,7 +1087,7 @@ def _billing_notification(payload: dict) -> tuple[str, str, str]:
     def _row(label: str, value: str) -> str:
         if not value:
             return ""
-        return f'<tr><td style="padding:4px 0;color:#888888;width:140px;">{label}</td><td style="padding:4px 0;">{value}</td></tr>'
+        return f'<tr><td style="padding:4px 0;color:#888888;width:140px;">{label}</td><td style="padding:4px 0;">{_esc(value)}</td></tr>'
 
     address_parts = [p for p in [address_line1, address_line2, city, province, postal_code] if p]
     address_display = ", ".join(address_parts)
@@ -1056,7 +1159,7 @@ def _new_application(payload: dict) -> tuple[str, str, str]:
         return (
             f"<tr>"
             f"<td style='padding:6px 0;color:#888888;font-size:13px;width:140px;'>{label}</td>"
-            f"<td style='padding:6px 0;font-size:13px;'>{value}</td>"
+            f"<td style='padding:6px 0;font-size:13px;'>{_esc(value)}</td>"
             f"</tr>"
         )
 
@@ -1074,7 +1177,7 @@ def _new_application(payload: dict) -> tuple[str, str, str]:
         if resume_url else ""
     )
     ai_block = (
-        f'<p style="margin-top:16px;"><strong>AI Summary:</strong><br><span style="color:#555555;">{ai_score_summary}</span></p>'
+        f'<p style="margin-top:16px;"><strong>AI Summary:</strong><br><span style="color:#555555;">{_esc(ai_score_summary)}</span></p>'
         if ai_score_summary else ""
     )
 
@@ -1085,7 +1188,7 @@ def _new_application(payload: dict) -> tuple[str, str, str]:
         <h1 style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#1F4E79;margin:0 0 4px;">GPR SURVEYS INC. — RECRUITING</h1>
       </div>
       <h2 style="font-size:20px;margin:0 0 8px;">New Application Received</h2>
-      <p style="color:#555555;margin:0 0 24px;">A new application has been submitted for <strong>{job_title}</strong>.</p>
+      <p style="color:#555555;margin:0 0 24px;">A new application has been submitted for <strong>{_esc(job_title)}</strong>.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">{rows_html}</table>
       {ai_block}
       {resume_link}
@@ -1118,6 +1221,9 @@ def _application_received(payload: dict) -> tuple[str, str, str]:
     first_name = payload.get("first_name", "")
     job_title  = payload.get("job_title", "the position")
 
+    h_first_name = _esc(first_name)
+    h_job_title  = _esc(job_title)
+
     subject = f"We received your application — {job_title}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
@@ -1126,8 +1232,8 @@ def _application_received(payload: dict) -> tuple[str, str, str]:
       </div>
       <h2 style="font-size:20px;margin:0 0 8px;">Application Received</h2>
       <p style="color:#555555;margin-bottom:24px;">
-        Dear {first_name},<br/><br/>
-        Thank you for applying for the <strong>{job_title}</strong> position at GPR Surveys Inc.
+        Dear {h_first_name},<br/><br/>
+        Thank you for applying for the <strong>{h_job_title}</strong> position at GPR Surveys Inc.
         We have received your application and our team will review it shortly.
       </p>
       <p style="color:#555555;margin-bottom:24px;">
@@ -1179,7 +1285,7 @@ def _interview_scheduled(payload: dict) -> tuple[str, str, str]:
         return (
             f"<tr>"
             f"<td style='padding:8px 0;color:#888888;font-size:13px;width:140px;border-bottom:1px solid #f0f0f0;'>{label}</td>"
-            f"<td style='padding:8px 0;font-size:13px;border-bottom:1px solid #f0f0f0;'>{value}</td>"
+            f"<td style='padding:8px 0;font-size:13px;border-bottom:1px solid #f0f0f0;'>{_esc(value)}</td>"
             f"</tr>"
         )
 
@@ -1191,9 +1297,12 @@ def _interview_scheduled(payload: dict) -> tuple[str, str, str]:
     )
 
     notes_block = (
-        f'<p style="margin-top:16px;color:#555555;"><strong>Additional Notes:</strong><br>{notes}</p>'
+        f'<p style="margin-top:16px;color:#555555;"><strong>Additional Notes:</strong><br>{_esc(notes)}</p>'
         if notes else ""
     )
+
+    h_first_name = _esc(first_name)
+    h_job_title  = _esc(job_title)
 
     subject = f"Interview Scheduled — {job_title} at GPR Surveys"
     html = f"""
@@ -1203,8 +1312,8 @@ def _interview_scheduled(payload: dict) -> tuple[str, str, str]:
       </div>
       <h2 style="font-size:20px;margin:0 0 8px;">Your Interview is Confirmed</h2>
       <p style="color:#555555;margin-bottom:24px;">
-        Dear {first_name},<br/><br/>
-        We are pleased to invite you to interview for the <strong>{job_title}</strong> position
+        Dear {h_first_name},<br/><br/>
+        We are pleased to invite you to interview for the <strong>{h_job_title}</strong> position
         at GPR Surveys Inc. Please find the details below.
       </p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">{rows_html}</table>
@@ -1242,6 +1351,9 @@ def _application_rejected(payload: dict) -> tuple[str, str, str]:
     first_name = payload.get("candidate_first_name", "") or payload.get("first_name", "")
     job_title  = payload.get("job_title", "the position")
 
+    h_first_name = _esc(first_name)
+    h_job_title  = _esc(job_title)
+
     subject = f"Your Application — {job_title}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;background:#ffffff;color:#0a0a0a;padding:40px;">
@@ -1250,8 +1362,8 @@ def _application_rejected(payload: dict) -> tuple[str, str, str]:
       </div>
       <h2 style="font-size:20px;margin:0 0 8px;">Thank You for Applying</h2>
       <p style="color:#555555;margin-bottom:24px;">
-        Dear {first_name},<br/><br/>
-        Thank you for taking the time to apply for the <strong>{job_title}</strong> position
+        Dear {h_first_name},<br/><br/>
+        Thank you for taking the time to apply for the <strong>{h_job_title}</strong> position
         at GPR Surveys Inc. We appreciate your interest in our company.
       </p>
       <p style="color:#555555;margin-bottom:24px;">
