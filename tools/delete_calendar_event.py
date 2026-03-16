@@ -21,7 +21,14 @@ def run(payload: dict) -> dict:
     calendar_owner = booking.get("calendar_owner_email", "info@gprsurveys.ca")
     service = get_google_service("calendar", "v3", subject=calendar_owner, scopes=SCOPES)
 
-    service.events().delete(calendarId=calendar_owner, eventId=event_id).execute()
+    event_ids = [eid.strip() for eid in event_id.split(",") if eid.strip()]
+    for eid in event_ids:
+        try:
+            service.events().delete(calendarId=calendar_owner, eventId=eid).execute()
+        except Exception as e:
+            # 404 means already deleted — treat as success
+            if "404" not in str(e):
+                raise
 
     return {"calendar_event_deleted": True, "calendar_owner_email": calendar_owner}
 

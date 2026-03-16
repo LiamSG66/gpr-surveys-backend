@@ -88,12 +88,40 @@ def _fmt_date(date_str: str) -> str:
         return date_str
 
 
+def _fmt_time(time_str: str) -> str:
+    from datetime import datetime
+    try:
+        t = datetime.strptime(time_str[:5], "%H:%M")
+        hour = t.strftime("%I").lstrip("0") or "12"
+        return f"{hour}:{t.strftime('%M')} {t.strftime('%p')}"
+    except Exception:
+        return time_str[:5]
+
+
+def _fmt_dates(booking: dict) -> str:
+    additional_dates = booking.get("additional_dates") or []
+    if len(additional_dates) > 1:
+        return ", ".join(_fmt_date(d) for d in sorted(additional_dates))
+    return _fmt_date(booking.get("date", ""))
+
+
+def _fmt_address(booking: dict) -> str:
+    parts = [
+        booking.get("site_address_line1", ""),
+        booking.get("site_address_line2", ""),
+        booking.get("site_city", ""),
+        booking.get("site_province", ""),
+        booking.get("site_postal_code", ""),
+    ]
+    return ", ".join(p for p in parts if p)
+
+
 def _customer_confirmation(booking: dict) -> tuple[str, str, str]:
     job = booking.get("job_number", "")
     service = booking.get("service", "")
-    date = _fmt_date(booking.get("date", ""))
-    booking_time = booking.get("booking_time", "")[:5]
-    city = booking.get("site_city", "")
+    date = _fmt_dates(booking)
+    booking_time = _fmt_time(booking.get("booking_time", ""))
+    location = _fmt_address(booking)
     customer = booking.get("customers") or {}
     first_name = customer.get("first_name", "")
     customer_email = customer.get("email", "")
@@ -104,7 +132,7 @@ def _customer_confirmation(booking: dict) -> tuple[str, str, str]:
     h_first_name = _esc(first_name)
     h_job        = _esc(job)
     h_service    = _esc(service)
-    h_city       = _esc(city)
+    h_location   = _esc(location)
 
     subject = f"Booking Confirmed — {job} | GPR Surveys"
     html = f"""
@@ -117,9 +145,9 @@ def _customer_confirmation(booking: dict) -> tuple[str, str, str]:
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{h_job}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{h_service}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{date}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Date(s)</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{date}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{booking_time}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{h_city}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{h_location}</td></tr>
       </table>
       <p style="margin-bottom:8px;">
         <a href="{modify_url}" style="display:inline-block;background:#FFD700;color:#0a0a0a;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
@@ -131,7 +159,7 @@ def _customer_confirmation(booking: dict) -> tuple[str, str, str]:
       </p>
     </div>
     """
-    plain = f"Booking Confirmed — {job}\nService: {service}\nDate: {date} at {booking_time}\nLocation: {city}\n\nModify your booking: {modify_url}"
+    plain = f"Booking Confirmed — {job}\nService: {service}\nDate(s): {date} at {booking_time}\nLocation: {location}\n\nModify your booking: {modify_url}"
     return subject, html, plain
 
 
@@ -139,9 +167,9 @@ def _booking_received(booking: dict) -> tuple[str, str, str]:
     """Sent immediately on booking submission — job is pending review, not yet confirmed."""
     job = booking.get("job_number", "")
     service = booking.get("service", "")
-    date = _fmt_date(booking.get("date", ""))
-    booking_time = booking.get("booking_time", "")[:5]
-    city = booking.get("site_city", "")
+    date = _fmt_dates(booking)
+    booking_time = _fmt_time(booking.get("booking_time", ""))
+    location = _fmt_address(booking)
     customer = booking.get("customers") or {}
     first_name = customer.get("first_name", "")
     customer_email = customer.get("email", "")
@@ -152,7 +180,7 @@ def _booking_received(booking: dict) -> tuple[str, str, str]:
     h_first_name = _esc(first_name)
     h_job        = _esc(job)
     h_service    = _esc(service)
-    h_city       = _esc(city)
+    h_location   = _esc(location)
 
     subject = f"Booking Request Received — {job} | GPR Surveys"
     html = f"""
@@ -165,9 +193,9 @@ def _booking_received(booking: dict) -> tuple[str, str, str]:
       <table style="width:100%;border-collapse:collapse;margin-bottom:32px;">
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Job Number</td><td style="padding:10px 0;font-size:13px;font-weight:600;border-bottom:1px solid #2a2a2a;">{h_job}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Service</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{h_service}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Requested Date</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{date}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Requested Date(s)</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{date}</td></tr>
         <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;border-bottom:1px solid #2a2a2a;">Time</td><td style="padding:10px 0;font-size:13px;border-bottom:1px solid #2a2a2a;">{booking_time}</td></tr>
-        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{h_city}</td></tr>
+        <tr><td style="padding:10px 0;color:#94a3b8;font-size:13px;">Location</td><td style="padding:10px 0;font-size:13px;">{h_location}</td></tr>
       </table>
       <p style="margin-bottom:8px;">
         <a href="{modify_url}" style="display:inline-block;background:#FFD700;color:#0a0a0a;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:12px 24px;">
@@ -183,7 +211,7 @@ def _booking_received(booking: dict) -> tuple[str, str, str]:
         f"Booking Request Received — {job}\n\n"
         f"Hi {first_name}, thank you for booking with GPR Surveys. Our team is reviewing your job request now.\n"
         f"We'll send you a confirmation email once it's been confirmed.\n\n"
-        f"Service: {service}\nRequested Date: {date} at {booking_time}\nLocation: {city}\n\n"
+        f"Service: {service}\nRequested Date(s): {date} at {booking_time}\nLocation: {location}\n\n"
         f"Modify your request: {modify_url}"
     )
     return subject, html, plain

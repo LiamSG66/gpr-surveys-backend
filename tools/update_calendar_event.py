@@ -28,9 +28,11 @@ def _build_event_body(booking: dict) -> dict:
     date = booking.get("date", "")
     time = booking.get("booking_time", "08:00:00")
 
+    # Use end_date for multi-day jobs
+    end_date = booking.get("end_date") or date
     start_dt = f"{date}T{time}"
     end_time_h = int(time.split(":")[0]) + 4
-    end_dt = f"{date}T{str(end_time_h).zfill(2)}:{time.split(':')[1]}:00"
+    end_dt = f"{end_date}T{str(end_time_h).zfill(2)}:{time.split(':')[1]}:00"
 
     customer = booking.get("customers") or {}
     description = "\n".join([
