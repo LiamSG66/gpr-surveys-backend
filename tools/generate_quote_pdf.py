@@ -364,6 +364,25 @@ def _bullet(text, styles):
     return Paragraph(f"&#x25CF; {text}", styles["Bullet"])
 
 
+def _render_rich_text(text, styles):
+    """Render admin-entered text with basic bullet support.
+
+    Lines starting with '- ' or '• ' are rendered as bullet points.
+    Empty lines become small spacers. All other lines are body paragraphs.
+    """
+    elements = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            elements.append(Spacer(1, 0.04 * inch))
+        elif stripped.startswith("- ") or stripped.startswith("• "):
+            bullet_text = stripped[2:].strip()
+            elements.append(_bullet(bullet_text, styles))
+        else:
+            elements.append(_body(stripped, styles))
+    return elements
+
+
 def _roman(numeral, text, styles):
     return Paragraph(f"{numeral}. {text}", styles["RomanItem"])
 
@@ -607,14 +626,16 @@ _DELIVERABLES_I_TO_V = [
 
 _DELIVERABLE_VI_A = (
     "VI",
-    "Subsurface findings will be surveyed and incorporated into the project dataset, allowing utilities to "
-    "be mapped and delivered in digital formats compatible with engineering and design workflows.",
+    "Where relevant utilities or surface features are located slightly outside the project limits but are "
+    "considered important to the work, they may also be collected and documented. Examples include manholes, "
+    "culverts (inlets/outlets), utility vaults, and other features supporting the design.",
 )
 
 _DELIVERABLE_VI_B = (
     "VI",
-    "Subsurface findings will be surveyed and incorporated into the project topographic dataset, allowing "
-    "utilities to be mapped and delivered in digital formats compatible with engineering and design workflows.",
+    "Where relevant utilities or surface features are located slightly outside the project limits but are "
+    "considered important to the work, they may also be collected and documented. Examples include manholes, "
+    "culverts (inlets/outlets), utility vaults, and other features supporting the design.",
 )
 
 _AUTOCAD_DELIVERABLES = [
@@ -782,14 +803,18 @@ def _project_overview_page(quote_data, site_image_data, styles):
 
 # ─── Scope section ────────────────────────────────────────────────────────────
 
-def _scope_section(template_type, styles):
+def _scope_section(template_type, quote_data, styles):
     story = []
 
     story.append(_section("Scope", styles))
 
-    # Opening paragraph
-    opening = _SCOPE_OPENING.get(template_type, _SCOPE_OPENING["locate_single"])
-    story.append(_body(opening, styles))
+    # Opening paragraph — use admin-entered scope_text if provided, else fall back to template default
+    scope_text = (quote_data.get("scope_text") or "").strip()
+    if scope_text:
+        story.extend(_render_rich_text(scope_text, styles))
+    else:
+        opening = _SCOPE_OPENING.get(template_type, _SCOPE_OPENING["locate_single"])
+        story.append(_body(opening, styles))
     story.append(Spacer(1, 0.06 * inch))
 
     # Scope intro sentence
@@ -1102,7 +1127,7 @@ def _build_story(contact, quote_data, template_type, styles, site_image_data):
     story = []
     story += _cover_page(contact, quote_data, template_type, styles)
     story += _project_overview_page(quote_data, site_image_data, styles)
-    story += _scope_section(template_type, styles)
+    story += _scope_section(template_type, quote_data, styles)
     story += _pricing_section(quote_data, template_type, styles)
     story += _boilerplate_sections(styles)
     story += _authorization_page(contact, quote_data, styles)
