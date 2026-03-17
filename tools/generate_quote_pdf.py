@@ -841,14 +841,15 @@ def _pricing_section(quote_data, template_type, styles):
 
     line_items = quote_data.get("line_items", [])
 
-    # Fixed columns: Line | Description | Unit | Qty | Amount
-    col_widths = [0.45 * inch, 3.55 * inch, 0.75 * inch, 0.75 * inch, 1.0 * inch]
+    # Fixed columns: Line | Description | Unit | Qty | Rate | Amount
+    col_widths = [0.4 * inch, 3.1 * inch, 0.65 * inch, 0.65 * inch, 0.9 * inch, 0.9 * inch]
 
     header = [
         Paragraph("Line",        styles["TableHeader"]),
         Paragraph("Description", styles["TableHeader"]),
         Paragraph("Unit",        styles["TableHeader"]),
         Paragraph("Qty",         styles["TableHeader"]),
+        Paragraph("Rate",        styles["TableHeader"]),
         Paragraph("Amount",      styles["TableHeader"]),
     ]
     table_data = [header]
@@ -869,18 +870,19 @@ def _pricing_section(quote_data, template_type, styles):
         total += amount
 
         row = [
-            Paragraph(str(i + 1),         styles["TableCell"]),
-            Paragraph(desc_text,           styles["TableCell"]),
-            Paragraph(item.get("unit", "LS"), styles["TableCell"]),
-            Paragraph(str(item.get("quantity", 1)), styles["TableCell"]),
-            Paragraph(f"${amount:,.2f}",   styles["TableCellRight"]),
+            Paragraph(str(i + 1),                    styles["TableCell"]),
+            Paragraph(desc_text,                      styles["TableCell"]),
+            Paragraph(item.get("unit", "LS"),         styles["TableCell"]),
+            Paragraph(str(item.get("quantity", 1)),   styles["TableCell"]),
+            Paragraph(f"${unit_price:,.2f}",          styles["TableCellRight"]),
+            Paragraph(f"${amount:,.2f}",              styles["TableCellRight"]),
         ]
         table_data.append(row)
 
-    # Total row — spans cols 0-3 with right-aligned label, col 4 amount
+    # Total row — spans cols 0-4 with right-aligned label, col 5 amount
     total_label = Paragraph("Total excluding GST", styles["TableCellBold"])
     total_amt   = Paragraph(f"${total:,.2f}", styles["TableCellBold"])
-    table_data.append(["", "", "", total_label, total_amt])
+    table_data.append(["", "", "", "", total_label, total_amt])
 
     t = Table(table_data, colWidths=col_widths, repeatRows=1)
     t.setStyle(TableStyle([
@@ -895,9 +897,9 @@ def _pricing_section(quote_data, template_type, styles):
         ("LEFTPADDING",   (0, 0),  (-1, -1), 6),
         ("RIGHTPADDING",  (0, 0),  (-1, -1), 6),
         ("LINEBELOW",     (0, -2), (-1, -2), 1.5, BLUE),
-        # Span label cell across cols 0-3 in total row
-        ("SPAN",          (0, -1), (3, -1)),
-        ("ALIGN",         (0, -1), (3, -1), "RIGHT"),
+        # Span label cell across cols 0-4 in total row
+        ("SPAN",          (0, -1), (4, -1)),
+        ("ALIGN",         (0, -1), (4, -1), "RIGHT"),
     ]))
     story.append(t)
 
