@@ -863,7 +863,9 @@ def _pricing_section(quote_data, template_type, styles):
         else:
             desc_text = item.get("description", "")
 
-        amount = item.get("amount", 0)
+        unit_price = float(item.get("amount", 0))
+        quantity = float(item.get("quantity", 1))
+        amount = unit_price * quantity
         total += amount
 
         row = [
