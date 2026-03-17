@@ -59,6 +59,9 @@ def run(payload: dict) -> dict:
     if not booking:
         raise ValueError("create_drive_folder: booking required")
 
+    if booking.get("is_blocked"):
+        return {"drive_folder_id": None, "drive_folder_url": None}
+
     folder_name = _build_folder_name(booking)
     service = get_google_service("drive", "v3", subject=DRIVE_SUBJECT, scopes=SCOPES)
 
