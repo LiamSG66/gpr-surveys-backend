@@ -111,8 +111,6 @@ def run(payload: dict) -> dict:
     po_number             = inv.get("po_number", "")
     cc_emails             = inv.get("cc_emails", "")
 
-    job_field_id = os.environ.get("QB_CUSTOM_FIELD_JOB_NUM_ID", "")
-    po_field_id  = os.environ.get("QB_CUSTOM_FIELD_PO_ID", "")
 
     qb = get_qb_client()
 
@@ -148,26 +146,13 @@ def run(payload: dict) -> dict:
     bill_addr.Country = "Canada"
     invoice.BillAddr = bill_addr
 
-    print(f"[qb_invoice] job_field_id={job_field_id!r} job_number={job_number!r} po_field_id={po_field_id!r} po_number={po_number!r}")
-    # Custom fields (Job# and PO#)
-    custom_fields = []
-    if job_field_id and job_field_id != "PENDING" and job_number:
-        custom_fields.append({
-            "DefinitionId": job_field_id,
-            "Name":         "Job Number",
-            "StringValue":  job_number,
-            "Type":         "StringType",
-        })
-    if po_field_id and po_field_id != "PENDING" and po_number:
-        custom_fields.append({
-            "DefinitionId": po_field_id,
-            "Name":         "P.O. Number",
-            "StringValue":  po_number,
-            "Type":         "StringType",
-        })
-    print(f"[qb_invoice] custom_fields={custom_fields!r}")
-    if custom_fields:
-        invoice.CustomField = custom_fields
+    # Native PO Number field (first-class QBO field, no custom field setup needed)
+    if po_number:
+        invoice.PONumber = po_number
+
+    # Job Number shown on printed/emailed invoice via CustomerMemo
+    if job_number:
+        invoice.CustomerMemo = f"Job Number: {job_number}"
 
     # QBO requires at least one line item even if empty
     # Add a placeholder description line
@@ -178,7 +163,6 @@ def run(payload: dict) -> dict:
     invoice.Line = [line]
 
     invoice.save(qb=qb)
-    print(f"[qb_invoice] saved invoice id={invoice.Id} CustomField={getattr(invoice, 'CustomField', 'MISSING')}")
 
     realm_id    = os.environ.get("QB_REALM_ID", "")
     invoice_id  = invoice.Id
