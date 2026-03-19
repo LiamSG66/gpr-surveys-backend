@@ -35,7 +35,7 @@ from quickbooks import QuickBooks
 from quickbooks.objects.customer import Customer
 from quickbooks.objects.invoice import Invoice
 from quickbooks.objects.detailline import SalesItemLine, SalesItemLineDetail
-from quickbooks.objects.base import Ref, EmailAddress, Address as BillAddr
+from quickbooks.objects.base import Ref, EmailAddress, Address as BillAddr, CustomerMemo
 from tools.qb_client import get_qb_client
 
 
@@ -153,7 +153,9 @@ def run(payload: dict) -> dict:
 
     # Job Number shown on printed/emailed invoice via CustomerMemo
     if job_number:
-        invoice.CustomerMemo = f"Job Number: {job_number}"
+        memo = CustomerMemo()
+        memo.value = f"Job Number: {job_number}"
+        invoice.CustomerMemo = memo
 
     # QBO requires at least one line item even if empty
     # Add a placeholder description line
