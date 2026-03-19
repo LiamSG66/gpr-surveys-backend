@@ -183,6 +183,13 @@ def run(payload: dict) -> dict:
 
     invoice.save(qb=qb)
 
+    # Diagnostic: read back the invoice to verify custom fields and confirm real DefinitionIds
+    try:
+        saved = Invoice.get(invoice.Id, qb=qb)
+        print(f"[qb_invoice] saved CustomField response={[cf.to_dict() if hasattr(cf, 'to_dict') else cf for cf in (saved.CustomField or [])]}")
+    except Exception as e:
+        print(f"[qb_invoice] could not read back invoice: {e}")
+
     realm_id    = os.environ.get("QB_REALM_ID", "")
     invoice_id  = invoice.Id
     invoice_num = invoice.DocNumber or invoice_id
