@@ -31,6 +31,7 @@ Returns:
 import os
 from datetime import datetime
 
+from quickbooks import QuickBooks
 from quickbooks.objects.customer import Customer
 from quickbooks.objects.invoice import Invoice
 from quickbooks.objects.detailline import SalesItemLine, SalesItemLineDetail
