@@ -78,11 +78,12 @@ def get_qb_client() -> QuickBooks:
     auth_client.refresh(refresh_token=refresh_token)
 
     new_token = auth_client.refresh_token
-    if new_token and new_token != refresh_token:
-        # Update env var immediately so subsequent tools in the same invocation
-        # pick up the new token without hitting Supabase again.
+    if new_token:
+        # Always update env var so subsequent tools in the same invocation
+        # pick up the latest token without hitting Supabase again.
         os.environ["QB_REFRESH_TOKEN"] = new_token
-        # Persist to Supabase for future invocations.
+        # Always persist to Supabase — seeds the row on first run and keeps
+        # it current on every rotation.
         _write_token_to_supabase(new_token)
 
     return QuickBooks(
