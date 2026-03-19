@@ -35,8 +35,13 @@ from quickbooks import QuickBooks
 from quickbooks.objects.customer import Customer
 from quickbooks.objects.invoice import Invoice
 from quickbooks.objects.detailline import SalesItemLine, SalesItemLineDetail
-from quickbooks.objects.base import Ref, EmailAddress, Address as BillAddr, CustomerMemo
+from quickbooks.objects.base import Ref, EmailAddress, Address as BillAddr, CustomField
 from tools.qb_client import get_qb_client
+
+# Custom field DefinitionIds — set in QBO Settings > Custom Fields, in this order:
+# 1 = P.O. Number, 2 = Job Number, 3 = Service
+QB_CF_PO_NUMBER_ID  = "1"
+QB_CF_JOB_NUMBER_ID = "2"
 
 
 # ─── Customer helpers ─────────────────────────────────────────────────────────
@@ -147,15 +152,24 @@ def run(payload: dict) -> dict:
     bill_addr.Country = "Canada"
     invoice.BillAddr = bill_addr
 
-    # Native PO Number field (first-class QBO field, no custom field setup needed)
+    # Custom fields — print on invoice PDF (DefinitionIds match QBO Settings > Custom Fields order)
+    custom_fields = []
     if po_number:
-        invoice.PONumber = po_number
-
-    # Job Number shown on printed/emailed invoice via CustomerMemo
+        cf = CustomField()
+        cf.DefinitionId = QB_CF_PO_NUMBER_ID
+        cf.Name = "P.O. Number"
+        cf.Type = "StringType"
+        cf.StringValue = po_number
+        custom_fields.append(cf)
     if job_number:
-        memo = CustomerMemo()
-        memo.value = f"Job Number: {job_number}"
-        invoice.CustomerMemo = memo
+        cf = CustomField()
+        cf.DefinitionId = QB_CF_JOB_NUMBER_ID
+        cf.Name = "Job Number"
+        cf.Type = "StringType"
+        cf.StringValue = job_number
+        custom_fields.append(cf)
+    if custom_fields:
+        invoice.CustomField = custom_fields
 
     # QBO requires at least one line item even if empty
     # Add a placeholder description line
