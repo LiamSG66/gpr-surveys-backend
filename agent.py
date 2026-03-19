@@ -112,6 +112,8 @@ def run_workflow(workflow_name: str, payload: dict) -> dict:
 
     state = dict(payload)
 
+    step_errors: list[str] = []
+
     for i, step in enumerate(steps, 1):
         tool_name = step["tool"]
         logger.info(f"[agent] Step {i}: {step['description']}")
@@ -126,9 +128,14 @@ def run_workflow(workflow_name: str, payload: dict) -> dict:
                 state.update(result)
             logger.info(f"[agent] Step {i} complete: {result}")
         except Exception as e:
-            logger.error(f"[agent] Step {i} FAILED ({tool_name}): {e}")
-            # Non-fatal for certain tools; re-raise to let main.py decide retry logic
-            raise
+            error_msg = f"Step {i} ({tool_name}): {e}"
+            logger.error(f"[agent] {error_msg}")
+            step_errors.append(error_msg)
+            # Continue — never abort mid-workflow so that later steps (e.g.
+            # update_booking_record) always run regardless of earlier failures.
+
+    if step_errors:
+        state["step_errors"] = step_errors
 
     logger.info(f"[agent] Workflow complete: {workflow_name}")
     return state

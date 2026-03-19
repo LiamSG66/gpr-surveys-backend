@@ -29,59 +29,13 @@ Returns:
 """
 
 import os
-import subprocess
 from datetime import datetime
 
-from intuitlib.client import AuthClient
-from intuitlib.enums import Scopes
-from quickbooks import QuickBooks
 from quickbooks.objects.customer import Customer
 from quickbooks.objects.invoice import Invoice
 from quickbooks.objects.detailline import SalesItemLine, SalesItemLineDetail
-from quickbooks.objects.base import Ref, PhoneNumber, EmailAddress, Address as BillAddr
-
-
-# ─── Auth ────────────────────────────────────────────────────────────────────
-
-def _persist_new_refresh_token(new_token: str) -> None:
-    """Write the rotated QB refresh token back to Modal secrets so it survives across invocations."""
-    try:
-        subprocess.run(
-            ["modal", "secret", "update", "gpr-surveys-secrets", f"QB_REFRESH_TOKEN={new_token}"],
-            check=True,
-            capture_output=True,
-        )
-        print("[qb_auth] Rotated refresh token saved to Modal secrets.")
-    except Exception as exc:
-        # Non-fatal: log and continue. Invoice will still be created this run.
-        print(f"[qb_auth] WARNING: could not persist rotated refresh token: {exc}")
-
-
-def _get_qb_client() -> QuickBooks:
-    client_id     = os.environ["QB_CLIENT_ID"]
-    client_secret = os.environ["QB_CLIENT_SECRET"]
-    refresh_token = os.environ["QB_REFRESH_TOKEN"]
-    realm_id      = os.environ["QB_REALM_ID"]
-    environment   = os.environ.get("QB_ENVIRONMENT", "sandbox")
-
-    auth_client = AuthClient(
-        client_id=client_id,
-        client_secret=client_secret,
-        redirect_uri="https://developer.intuit.com/v2/OAuth2Playground/RedirectUrl",
-        environment=environment,
-    )
-    # Refresh to get a valid access token. QBO rotates the refresh token on each call.
-    auth_client.refresh(refresh_token=refresh_token)
-
-    # Persist the new rotated token so the next invocation doesn't get invalid_grant.
-    if auth_client.refresh_token and auth_client.refresh_token != refresh_token:
-        _persist_new_refresh_token(auth_client.refresh_token)
-
-    return QuickBooks(
-        auth_client=auth_client,
-        company_id=realm_id,
-        minorversion=65,
-    )
+from quickbooks.objects.base import Ref, EmailAddress, Address as BillAddr
+from tools.qb_client import get_qb_client
 
 
 # ─── Customer helpers ─────────────────────────────────────────────────────────
@@ -160,7 +114,7 @@ def run(payload: dict) -> dict:
     job_field_id = os.environ.get("QB_CUSTOM_FIELD_JOB_NUM_ID", "")
     po_field_id  = os.environ.get("QB_CUSTOM_FIELD_PO_ID", "")
 
-    qb = _get_qb_client()
+    qb = get_qb_client()
 
     customer_id = _ensure_customer(qb, customer_display_name, billing_email, billing_addr)
 

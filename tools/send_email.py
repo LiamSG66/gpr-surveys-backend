@@ -13,7 +13,11 @@ import json
 import logging
 import os
 import time
-from html import escape as _esc
+from html import escape as _html_escape
+
+def _esc(s) -> str:
+    """HTML-escape a value; returns '' for None so NULL database fields don't crash templates."""
+    return _html_escape(str(s)) if s is not None else ""
 import jwt
 
 logger = logging.getLogger(__name__)
@@ -82,6 +86,8 @@ def _send(service, to: str, subject: str, html: str, plain: str, attachment: dic
 
 def _fmt_date(date_str: str) -> str:
     from datetime import datetime
+    if not date_str:
+        return ""
     try:
         return datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %d, %Y")
     except Exception:
@@ -90,6 +96,8 @@ def _fmt_date(date_str: str) -> str:
 
 def _fmt_time(time_str: str) -> str:
     from datetime import datetime
+    if not time_str:
+        return ""
     try:
         t = datetime.strptime(time_str[:5], "%H:%M")
         hour = t.strftime("%I").lstrip("0") or "12"

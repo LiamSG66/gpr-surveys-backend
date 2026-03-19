@@ -11,52 +11,10 @@ Input payload:
 Returns: { "attachable_id": str }
 """
 
-import os
 import base64
-import subprocess
 
-from intuitlib.client import AuthClient
-from quickbooks import QuickBooks
 from quickbooks.objects.attachable import Attachable, AttachableRef
-
-
-def _persist_new_refresh_token(new_token: str) -> None:
-    """Write the rotated QB refresh token back to Modal secrets so it survives across invocations."""
-    try:
-        subprocess.run(
-            ["modal", "secret", "update", "gpr-surveys-secrets", f"QB_REFRESH_TOKEN={new_token}"],
-            check=True,
-            capture_output=True,
-        )
-        print("[qb_auth] Rotated refresh token saved to Modal secrets.")
-    except Exception as exc:
-        print(f"[qb_auth] WARNING: could not persist rotated refresh token: {exc}")
-
-
-def _get_qb_client() -> QuickBooks:
-    client_id     = os.environ["QB_CLIENT_ID"]
-    client_secret = os.environ["QB_CLIENT_SECRET"]
-    refresh_token = os.environ["QB_REFRESH_TOKEN"]
-    realm_id      = os.environ["QB_REALM_ID"]
-    environment   = os.environ.get("QB_ENVIRONMENT", "sandbox")
-
-    auth_client = AuthClient(
-        client_id=client_id,
-        client_secret=client_secret,
-        redirect_uri="http://localhost:8080/callback",
-        environment=environment,
-    )
-    auth_client.refresh(refresh_token=refresh_token)
-
-    # Persist the new rotated token so the next invocation doesn't get invalid_grant.
-    if auth_client.refresh_token and auth_client.refresh_token != refresh_token:
-        _persist_new_refresh_token(auth_client.refresh_token)
-
-    return QuickBooks(
-        auth_client=auth_client,
-        company_id=realm_id,
-        minorversion=65,
-    )
+from tools.qb_client import get_qb_client
 
 
 def run(payload: dict) -> dict:
@@ -69,7 +27,7 @@ def run(payload: dict) -> dict:
     if not pdf_bytes:
         raise ValueError("attach_to_quickbooks_invoice: pdf_bytes is required")
 
-    qb = _get_qb_client()
+    qb = get_qb_client()
 
     decoded = base64.b64decode(pdf_bytes)
 
