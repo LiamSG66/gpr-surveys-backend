@@ -153,6 +153,7 @@ def run(payload: dict) -> dict:
     invoice.BillAddr = bill_addr
 
     # Custom fields — print on invoice PDF (DefinitionIds match QBO Settings > Custom Fields order)
+    print(f"[qb_invoice] po_number={po_number!r} job_number={job_number!r}")
     custom_fields = []
     if po_number:
         cf = CustomField()
@@ -168,6 +169,7 @@ def run(payload: dict) -> dict:
         cf.Type = "StringType"
         cf.StringValue = job_number
         custom_fields.append(cf)
+    print(f"[qb_invoice] custom_fields payload={[cf.to_dict() for cf in custom_fields]}")
     if custom_fields:
         invoice.CustomField = custom_fields
 
