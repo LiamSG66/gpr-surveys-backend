@@ -239,8 +239,9 @@ async def generate_quote_pdf_endpoint(request: Request) -> dict:
     try:
         result = run_workflow("generate_quote", payload)
         return {
-            "drive_file_id": result.get("drive_file_id"),
-            "drive_url":     result.get("drive_url"),
+            "drive_file_id":     result.get("drive_file_id"),
+            "drive_url":         result.get("drive_url"),
+            "supabase_pdf_path": result.get("supabase_pdf_path"),
         }
     except Exception as e:
         logger.error(f"[generate_quote_pdf_endpoint] {e}")

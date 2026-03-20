@@ -12,11 +12,13 @@ Generate a branded multi-page PDF quote and upload it to the Google Drive "Quote
 ## Steps
 1. Generate PDF from contact and quote_data → tools/generate_quote_pdf.py
 2. Upload PDF to Google Drive Quotes folder → tools/upload_quote_to_drive.py
+3. Upload PDF to Supabase Storage for inline preview → tools/upload_quote_to_supabase.py
 
 ## Output
 - `pdf_bytes` — base64-encoded PDF bytes (from step 1)
 - `drive_file_id` — Google Drive file ID of uploaded PDF
 - `drive_url` — shareable Drive URL
+- `supabase_pdf_path` — storage path in the `quote-pdfs` Supabase bucket (e.g. `Q00042.pdf`)
 
 ## Template Types
 

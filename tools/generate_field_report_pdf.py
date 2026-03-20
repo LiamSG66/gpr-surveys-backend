@@ -689,7 +689,6 @@ def _signoff_page(rd: dict, styles) -> list:
         return t
 
     story.append(_sig_line("Technician Name", tech_name))
-    story.append(_sig_line("CGSB Certification #", ""))
     story.append(_sig_line("Signature", ""))
     story.append(_sig_line("Date", report_date))
 
