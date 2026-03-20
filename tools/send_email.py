@@ -47,15 +47,18 @@ def _get_service():
     return get_google_service("gmail", "v1", subject=GMAIL_SUBJECT, scopes=SCOPES)
 
 
-def _send(service, to: str, subject: str, html: str, plain: str, attachment: dict | None = None) -> str:
+def _send(service, to: str, subject: str, html: str, plain: str, attachment: dict | None = None, cc: list[str] | None = None) -> str:
     """
     attachment = { "filename": str, "content_bytes": bytes, "mime_type": str } | None
+    cc        = list of additional recipient email addresses for Cc header
     """
     if attachment:
         outer = MIMEMultipart("mixed")
         outer["Subject"] = subject
         outer["From"] = settings.gmail_sender
         outer["To"] = to
+        if cc:
+            outer["Cc"] = ", ".join(cc)
         alt = MIMEMultipart("alternative")
         alt.attach(MIMEText(plain, "plain"))
         alt.attach(MIMEText(html, "html"))
@@ -76,6 +79,8 @@ def _send(service, to: str, subject: str, html: str, plain: str, attachment: dic
         msg["Subject"] = subject
         msg["From"] = settings.gmail_sender
         msg["To"] = to
+        if cc:
+            msg["Cc"] = ", ".join(cc)
         msg.attach(MIMEText(plain, "plain"))
         msg.attach(MIMEText(html, "html"))
 
@@ -1579,7 +1584,14 @@ def run(payload: dict) -> dict:
             "mime_type":     "application/pdf",
         }
 
-    msg_id = _send(service, to, subject, html, plain, attachment=attachment)
+    # ── Resolve CC recipients (quote_email only) ──────────────────────────────
+    cc_list: list[str] | None = None
+    if template == "quote_email":
+        raw_cc = payload.get("contact", {}).get("cc_emails") or payload.get("cc_emails") or []
+        cleaned = [e.strip().lower() for e in raw_cc if e and e.strip() and e.strip().lower() != to.lower()]
+        cc_list = cleaned if cleaned else None
+
+    msg_id = _send(service, to, subject, html, plain, attachment=attachment, cc=cc_list)
     result = {f"email_{template}_id": msg_id}
 
     # For cancellations, also notify the assigned technician directly
